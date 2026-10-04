@@ -16,7 +16,7 @@
  * ==========================================================================*/
 
 #define FW_NAME     "TCG Counter"
-#define FW_VERSION  "0.1.0"
+#define FW_VERSION  "0.1.1"
 
 /* ============================================================================
  *  1. ROTARY ENCODER (EC11 with push switch)
@@ -79,7 +79,8 @@
 #define PIN_TFT_RST              -1   // tied to the ESP32 EN/reset line on the CYD
 #define PIN_TFT_BACKLIGHT        21   // some CYD-family boards use 27 — check yours
 
-#define DISPLAY_ROTATION         1    // 1 or 3 = landscape. Swap if the UI is upside down.
+#define DISPLAY_ROTATION         3    // 1 or 3 = landscape. Swap if the UI is upside down.
+                                      // 3 confirmed on the first test board (1 was upside down).
 #define DISPLAY_INVERT_COLORS    0    // 1 if black shows as white
 #define DISPLAY_SWAP_RED_BLUE    0    // 1 if red and blue are swapped
 #define DISPLAY_SPI_WRITE_HZ     40000000
