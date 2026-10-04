@@ -319,15 +319,17 @@ void drawCardContent(lgfx::LovyanGFX& c, int ox, int oy, uint8_t i, const CardVi
 void drawCard(uint8_t i, const CardView& v) {
   const Rect q = quadRect(i);
   if (auto* s = cardSprite()) {
-    // pushSprite() sends the buffer by DMA in the background. The buffer must
-    // not be redrawn until that transfer has finished, or cards get mixed up.
+    // The same buffer is reused for every card. pushSprite() would send it by
+    // DMA in the background, and redrawing the buffer for the next card while
+    // that transfer is still running mixes cards up on the screen. So: make
+    // sure nothing is still in flight, and push with a plain blocking transfer.
     gfx().waitDMA();
     drawCardContent(*s, 0, 0, i, v);
     if (isFlipped(i)) {  // exact 180° turn: reverse the pixel order
       auto* px = static_cast<uint16_t*>(s->getBuffer());
       std::reverse(px, px + QW * QH);
     }
-    s->pushSprite(q.x, q.y);
+    gfx().pushImage(q.x, q.y, QW, QH, static_cast<const lgfx::swap565_t*>(s->getBuffer()));  // no DMA
   } else {
     drawCardContent(gfx(), q.x, q.y, i, v);  // no memory for the sprite: draw unrotated
   }
