@@ -64,11 +64,11 @@ for v in ${VARIANTS}; do
 
   # Application only, flashed at 0x10000 together with the shared parts:
   # leaves NVS (saved game + calibration) untouched.
-  cp "${build}/firmware.bin" "dist/${NAME}-${label}-app.bin"
+  cp "${build}/firmware.bin" "dist/${label}-app.bin"
 
   # Single image for a FRESH install. Its padding covers 0x9000-0xDFFF (NVS),
   # so flashing it resets the saved game AND the touch calibration.
-  esptool --chip esp32 merge-bin -o "dist/${NAME}-${label}-merged-fresh-install.bin" \
+  esptool --chip esp32 merge-bin -o "dist/${label}-fresh-install.bin" \
     --flash-mode keep --flash-freq keep --flash-size keep \
     0x1000  "${build}/bootloader.bin" \
     0x8000  "${build}/partitions.bin" \
@@ -103,6 +103,9 @@ cp dist/bootloader.bin dist/partitions.bin dist/boot_app0.bin site/firmware/
   echo "TCG Counter v${VERSION}  (commit ${COMMIT}, built ${DATE})"
   echo "Board: ESP32-2432S028R \"Cheap Yellow Display\""
   echo
+  echo "File names never change between versions, so the commands below always work:"
+  echo "unzip each new build over the old files in the same folder."
+  echo
   echo "WHICH FILE? Pick the display controller of your board:"
   echo "  ili9341 - original CYD (micro-USB)"
   echo "  st7789  - newer revisions (USB-C, or micro-USB + USB-C)"
@@ -112,15 +115,15 @@ cp dist/bootloader.bin dist/partitions.bin dist/boot_app0.bin site/firmware/
   echo "EASIEST: the web flasher on this repo's GitHub Pages site (Chrome/Edge on a PC)."
   echo
   echo "Commands work with esptool v4 and v5 (also the one in an ESP-IDF shell)."
-  echo "Type each command on ONE line. Replace COM5 with your port, st7789 with your variant."
+  echo "Type each command on ONE line. Replace COM5 with your port, st7789 with ili9341 for original boards."
   echo "If the board doesn't enter flash mode by itself: hold BOOT, tap RST, release BOOT,"
   echo "then add  --before no_reset  right after the --baud value."
   echo
   echo "FRESH INSTALL - resets saved game + touch calibration (use this the first time):"
-  echo "  esptool --chip esp32 --port COM5 --baud 460800 write_flash 0x0 ${NAME}-st7789-merged-fresh-install.bin"
+  echo "  esptool --chip esp32 --port COM5 --baud 460800 write_flash 0x0 st7789-fresh-install.bin"
   echo
   echo "UPDATE - keeps saved game + touch calibration:"
-  echo "  esptool --chip esp32 --port COM5 --baud 460800 write_flash 0x1000 bootloader.bin 0x8000 partitions.bin 0xe000 boot_app0.bin 0x10000 ${NAME}-st7789-app.bin"
+  echo "  esptool --chip esp32 --port COM5 --baud 460800 write_flash 0x1000 bootloader.bin 0x8000 partitions.bin 0xe000 boot_app0.bin 0x10000 st7789-app.bin"
   echo
   echo "After flashing, tap RST once."
 } > dist/FLASHING.txt

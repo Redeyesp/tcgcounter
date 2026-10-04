@@ -324,10 +324,14 @@ offsets, the same as a PlatformIO/Arduino upload, so the NVS area (saved game +
 calibration) is only cleared if you tick *Erase*.
 
 Files without the browser: every build's *Summary* page has a **TCGCounter-firmware**
-artifact (and tagged builds attach the same files to the Release). It contains
-`FLASHING.txt` with esptool commands, the separate parts for updates, and
-`…-merged-fresh-install.bin` — a single image for address `0x0` that **also wipes the saved
-game and calibration**.
+artifact (and tagged builds attach the same files to the Release). File names are the same
+in every version, so unzip each new build over the old one and reuse the same command:
+
+| File | Use |
+|---|---|
+| `bootloader.bin`, `partitions.bin`, `boot_app0.bin` + `st7789-app.bin` (or `ili9341-app.bin`) | **update** — keeps the saved game and calibration |
+| `st7789-fresh-install.bin` (or `ili9341-…`) | **fresh install** at address `0x0` — also wipes the saved game and calibration |
+| `FLASHING.txt` | version, commit and the exact esptool commands |
 
 To build the same files locally: `pio run && bash scripts/package_firmware.sh`
 (needs `pip install "esptool>=5,<6"`).
