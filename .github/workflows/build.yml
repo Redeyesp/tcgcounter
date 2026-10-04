@@ -6,7 +6,8 @@
 #  pull request      -> build only (catches compile errors before merging)
 #  tag vX.Y.Z        -> build + GitHub Release with the firmware files
 #                       (tag must equal FW_VERSION in TCGCounter/Config.h)
-#  manual            -> Actions tab -> "Build & publish firmware" -> Run workflow
+#  manual (on main)  -> Actions tab -> "Build & publish firmware" -> Run workflow
+#                       (same as a push: build + web flasher)
 #
 #  One-time repo setting: Settings -> Pages -> Source: "GitHub Actions".
 # ============================================================================
@@ -63,14 +64,14 @@ jobs:
           if-no-files-found: error
 
       - name: Upload web flasher site
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v5
         with:
           path: site/
 
   pages:
     name: Deploy web flasher (GitHub Pages)
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     permissions:
