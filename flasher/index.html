@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TCG Counter Flasher</title>
+  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+  <style>
+    :root {
+      --bg: #0b0c0f; --panel: #16181e; --edge: #2c303a; --text: #f2f2f2;
+      --dim: #8a90a0; --accent: #ffc400; --ok: #46d678; --warn: #ff6b6b;
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    main { max-width: 760px; margin: 0 auto; padding: 32px 16px 56px; }
+    h1 { margin: 0 0 4px; font-size: 28px; letter-spacing: .02em; }
+    .meta { color: var(--dim); font-size: 14px; font-variant-numeric: tabular-nums; }
+    .meta code { color: var(--text); }
+    .card {
+      background: var(--panel); border: 1px solid var(--edge); border-radius: 14px;
+      padding: 20px; margin-top: 20px;
+    }
+    .install { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
+    .install p { margin: 0; color: var(--dim); flex: 1 1 260px; }
+    button.go {
+      background: var(--accent); color: #111; border: 0; border-radius: 10px;
+      padding: 14px 26px; font-family: inherit; font-size: 17px; font-weight: 700;
+      line-height: 1; cursor: pointer;
+    }
+    button.go:hover { filter: brightness(1.08); }
+    .msg { color: var(--warn); }
+    h2 { font-size: 17px; margin: 0 0 10px; }
+    ol, ul { margin: 0; padding-left: 22px; }
+    li { margin: 6px 0; }
+    .keep { color: var(--ok); font-weight: 600; }
+    .wipe { color: var(--warn); font-weight: 600; }
+    img { width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--edge); display: block; }
+    a { color: var(--accent); }
+    footer { margin-top: 28px; color: var(--dim); font-size: 14px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>TCG Counter</h1>
+  <div class="meta">
+    Firmware <code>v@VERSION@</code> · commit <code>@COMMIT@</code> · built @DATE@ · ESP32-2432S028R (CYD)
+  </div>
+
+  <section class="card install">
+    <esp-web-install-button manifest="manifest.json">
+      <button slot="activate" class="go">Connect &amp; install</button>
+      <span slot="unsupported" class="msg">This browser can't flash devices. Use Chrome or Edge on a computer.</span>
+      <span slot="not-allowed" class="msg">Flashing needs HTTPS. Open this page from its github.io address.</span>
+    </esp-web-install-button>
+    <p>Plug the board in with a USB <em>data</em> cable, click the button and pick the USB serial port
+       (usually "USB-SERIAL CH340").</p>
+  </section>
+
+  <section class="card">
+    <h2>Erase or keep?</h2>
+    <ul>
+      <li><span class="keep">Leave “Erase device” unticked</span> for updates: the saved game and the
+          touch calibration are kept.</li>
+      <li><span class="wipe">Tick it</span> only for a clean start: the game resets and touch
+          calibration runs again on the next boot.</li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>If it doesn't connect</h2>
+    <ol>
+      <li>No port listed → install the CH340 USB driver, or try another cable (many are charge-only).</li>
+      <li>“Failed to connect” → hold <b>BOOT</b>, tap <b>RST</b>, release BOOT, then click install again.</li>
+      <li>After flashing, tap <b>RST</b> if the board doesn't restart by itself.</li>
+      <li>Close any serial monitor (Arduino IDE / PlatformIO) first — only one program can use the port.</li>
+    </ol>
+  </section>
+
+  <section class="card">
+    <img src="ui_preview.png" alt="Home, Commander and Coming Soon screens" onerror="this.parentElement.remove()">
+  </section>
+
+  <footer>
+    Source and build history: <a href="https://github.com/@REPO@">github.com/@REPO@</a> ·
+    <a href="https://github.com/@REPO@/releases">Releases</a> ·
+    <a href="https://github.com/@REPO@/actions">Builds</a>
+  </footer>
+</main>
+</body>
+</html>

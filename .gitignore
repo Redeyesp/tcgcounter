@@ -1,0 +1,22 @@
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Build outputs (CI builds and publishes firmware; never commit binaries)
+build/
+prebuilt/
+*.bin
+*.elf
+*.map
+*.zip
+dist/
+site/
