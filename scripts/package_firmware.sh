@@ -68,12 +68,17 @@ esptool --chip esp32 merge-bin -o "dist/${NAME}-merged-fresh-install.bin" \
   echo
   echo "EASIEST: the web flasher on this repo's GitHub Pages site (Chrome/Edge on a PC)."
   echo
-  echo "UPDATE - keeps saved game + touch calibration (esptool v5):"
-  echo "  esptool --chip esp32 --baud 460800 write-flash \\"
-  echo "    0x1000 bootloader.bin 0x8000 partitions.bin 0xe000 boot_app0.bin 0x10000 ${NAME}-app.bin"
+  echo "Commands work with esptool v4 and v5 (also the one in an ESP-IDF shell)."
+  echo "Type each command on ONE line. Replace COM5 with your port (Device Manager)."
   echo
-  echo "FRESH INSTALL - resets saved game + touch calibration:"
-  echo "  esptool --chip esp32 --baud 460800 write-flash 0x0 ${NAME}-merged-fresh-install.bin"
+  echo "FRESH INSTALL - resets saved game + touch calibration (use this the first time):"
+  echo "  esptool --chip esp32 --port COM5 --baud 460800 write_flash 0x0 ${NAME}-merged-fresh-install.bin"
+  echo
+  echo "UPDATE - keeps saved game + touch calibration:"
+  echo "  esptool --chip esp32 --port COM5 --baud 460800 write_flash 0x1000 bootloader.bin 0x8000 partitions.bin 0xe000 boot_app0.bin 0x10000 ${NAME}-app.bin"
+  echo
+  echo "\"Failed to connect\": hold BOOT, tap RST, release BOOT, run the command again."
+  echo "After flashing, tap RST once."
 } > dist/FLASHING.txt
 
 # ---- Web flasher (ESP Web Tools) ----------------------------------------------
