@@ -142,7 +142,7 @@ configured entirely from the project's own `Board.h`, which reads `Config.h`.
 
 | Section in `Config.h` | Pins (stock ESP32-2432S028R) |
 |---|---|
-| 1. Rotary encoder | `ENC_A` 35, `ENC_B` 22, `ENC_SW` 27 — **provisional, replace with yours** |
+| 1. Rotary encoder (KY-040) | `ENC_A` (CLK) 22, `ENC_B` (DT) 35, `ENC_SW` 27 |
 | 2. Display (HSPI) | SCLK 14, MOSI 13, MISO 12, DC 2, CS 15, RST −1 (tied to EN), backlight 21 |
 | 3. Touch XPT2046 | SCLK 25, MOSI 32, MISO 39, CS 33, IRQ 36 (IRQ unused by default) |
 | 4. Other on-board | SD 5/23/19/18, RGB LED 4/16/17, LDR 34, speaker 26, BOOT 0, UART 1/3 |
@@ -291,8 +291,8 @@ All encoder settings are in **section 1 of `Config.h`**:
 
 ```cpp
 #define ENC_ENABLED              1    // 0 = ignore the encoder completely
-#define ENC_A                    35   // A / CLK
-#define ENC_B                    22   // B / DT
+#define ENC_A                    22   // A / CLK  (CN1)
+#define ENC_B                    35   // B / DT   (P3)
 #define ENC_SW                   27   // push switch
 #define ENC_AB_INTERNAL_PULLUP   1
 #define ENC_SW_INTERNAL_PULLUP   1
@@ -316,14 +316,27 @@ Steps:
 5. Upload and open the serial monitor (115200). You should see:
 
    ```
-   [encoder] A=GPIO35 B=GPIO22 SW=GPIO27, 4 steps/detent, idle AB=11
+   [encoder] A=GPIO22 B=GPIO35 SW=GPIO27, 4 steps/detent, idle AB=11
    ```
 
    With the knob resting on a detent, `idle AB` should be `11`. Anything else usually
    means a missing pull-up or a wiring fault. A `NOTE: … has no internal pull-up` line is a
    reminder for pins 34–39.
 
-Wiring (EC11 common pin and one switch leg to GND):
+Wiring a **KY-040 module** (the default pins) — one 4-wire cable on CN1 plus one wire to P3:
+
+| KY-040 | CYD |
+|---|---|
+| GND | CN1 GND |
+| + | CN1 **3.3 V** (never 5 V; P3 has no 3.3 V, and its IO21 is the backlight) |
+| CLK | CN1 IO22 |
+| SW | CN1 IO27 |
+| DT | P3 IO35 (the module's own pull-up on DT makes this input-only pin work) |
+
+Until DT is connected the knob does nothing (direction needs both CLK and DT); the push
+switch already works, and touch works as usual.
+
+Wiring a bare EC11 (common pin and one switch leg to GND, plus a 10 kΩ pull-up on GPIO35):
 
 ```
 EC11 A / CLK ─── ENC_A        EC11 C (middle) ─── GND

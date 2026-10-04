@@ -16,7 +16,7 @@
  * ==========================================================================*/
 
 #define FW_NAME     "TCG Counter"
-#define FW_VERSION  "0.5.0"
+#define FW_VERSION  "0.5.1"
 
 /* ============================================================================
  *  1. ROTARY ENCODER (EC11 with push switch)
@@ -28,29 +28,31 @@
  *      GPIO 22  (P3 and CN1)     full GPIO, internal pull-up available
  *      GPIO 27  (CN1 connector)  full GPIO, internal pull-up available
  *
- *  Default assignment below and why:
- *      ENC_A  = 35  A/CLK. Needs a pull-up: either your encoder module's
- *                   own resistor (most KY-040 style boards have one on CLK)
- *                   or an external 10 kΩ from GPIO35 to 3.3 V.
- *                   If this pin is left floating, the quadrature decoder
- *                   rejects the noise (one channel alone can never form a
- *                   valid step), so it cannot fake rotation.
- *      ENC_B  = 22  B/DT, internal pull-up.
- *      ENC_SW = 27  push switch, internal pull-up. The switch is kept OFF
- *                   GPIO35 on purpose: a floating switch input WOULD cause
- *                   phantom button presses.
+ *  Default assignment below (KY-040 module) and why:
+ *      ENC_A  = 22  A/CLK  (CN1), internal pull-up.
+ *      ENC_B  = 35  B/DT   (P3). Needs a pull-up: the KY-040 board has one on
+ *                   DT (10 kΩ to its + pin), otherwise fit 10 kΩ from GPIO35
+ *                   to 3.3 V. If this pin is left floating, the quadrature
+ *                   decoder rejects the noise (one channel alone can never
+ *                   form a valid step), so it cannot fake rotation.
+ *      ENC_SW = 27  push switch (CN1), internal pull-up. The switch is kept
+ *                   OFF GPIO35 on purpose: a floating switch input WOULD
+ *                   cause phantom button presses (most KY-040 boards have
+ *                   no pull-up on SW).
  *
- *  Wiring (common pin of the encoder and one side of the switch to GND):
- *      Encoder A/CLK -> ENC_A     Encoder B/DT -> ENC_B
- *      Encoder SW    -> ENC_SW    Encoder C / GND -> GND    (+ -> 3.3 V if module)
+ *  KY-040 wiring: one 4-wire cable on CN1 + one wire to P3
+ *      CN1: GND -> GND   3.3V -> +   IO22 -> CLK   IO27 -> SW
+ *      P3:  IO35 -> DT
+ *  (Bare EC11: common pin and one switch leg to GND, A -> ENC_A, B -> ENC_B,
+ *   other switch leg -> ENC_SW, and a 10 kΩ pull-up on GPIO35.)
  *
  *  Never use 3.3 V-incompatible modules: power encoder modules from 3.3 V,
  *  not 5 V.
  * ==========================================================================*/
 #define ENC_ENABLED              1    // 0 = ignore the encoder completely
 
-#define ENC_A                    35   // A / CLK
-#define ENC_B                    22   // B / DT
+#define ENC_A                    22   // A / CLK  (CN1)
+#define ENC_B                    35   // B / DT   (P3)
 #define ENC_SW                   27   // push switch
 
 #define ENC_AB_INTERNAL_PULLUP   1    // enable ESP32 pull-ups on A/B (ignored on GPIO 34-39)
