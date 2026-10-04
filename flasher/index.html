@@ -51,13 +51,30 @@
   </div>
 
   <section class="card install">
-    <esp-web-install-button manifest="manifest.json">
-      <button slot="activate" class="go">Connect &amp; install</button>
+    <esp-web-install-button manifest="manifest-st7789.json">
+      <button slot="activate" class="go">Install · ST7789</button>
       <span slot="unsupported" class="msg">This browser can't flash devices. Use Chrome or Edge on a computer.</span>
       <span slot="not-allowed" class="msg">Flashing needs HTTPS. Open this page from its github.io address.</span>
     </esp-web-install-button>
-    <p>Plug the board in with a USB <em>data</em> cable, click the button and pick the USB serial port
-       (usually "USB-SERIAL CH340").</p>
+    <p><b>Newer boards</b> — USB-C, or micro-USB + USB-C.</p>
+  </section>
+
+  <section class="card install">
+    <esp-web-install-button manifest="manifest-ili9341.json">
+      <button slot="activate" class="go">Install · ILI9341</button>
+      <span slot="unsupported" class="msg">This browser can't flash devices. Use Chrome or Edge on a computer.</span>
+      <span slot="not-allowed" class="msg">Flashing needs HTTPS. Open this page from its github.io address.</span>
+    </esp-web-install-button>
+    <p><b>Original board</b> — micro-USB only.</p>
+  </section>
+
+  <section class="card">
+    <h2>Which one?</h2>
+    <ul>
+      <li>A <b>mirrored or sideways</b> picture with <b>swapped colours</b> means the other variant.</li>
+      <li>The serial log (115200 baud) prints a <code>controller ID</code> line at boot that names it.</li>
+      <li>Plug in with a USB <em>data</em> cable and pick the port (usually "USB-SERIAL CH340").</li>
+    </ul>
   </section>
 
   <section class="card">

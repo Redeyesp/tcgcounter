@@ -36,7 +36,7 @@ check the layout. It has **not** run on a physical CYD yet — that is what V0.1
 
 1. Edit `TCGCounter/Config.h` if needed (display driver, encoder pins), commit, push to `main`.
 2. GitHub Actions builds the firmware and updates the web flasher (section 7).
-3. Open the web flasher in Chrome/Edge, plug in the CYD, click **Connect & install**.
+3. Open the web flasher in Chrome/Edge, plug in the CYD, click the install button for your board variant (below).
 4. On first boot the touch calibration runs automatically (section 5).
 
 Building locally with PlatformIO or the Arduino IDE works too (section 7).
@@ -85,7 +85,7 @@ Also in section 2 (for other CYD revisions):
 
 | Setting | Use when |
 |---|---|
-| `DISPLAY_DRIVER` = `DISPLAY_DRIVER_ST7789` | two-USB-port "CYD2USB" boards, or a white/garbled screen |
+| `DISPLAY_DRIVER` = `DISPLAY_DRIVER_ST7789` | newer revisions (USB-C, or micro-USB + USB-C), or a white/garbled/mirrored screen. PlatformIO builds both: env `cyd` (ILI9341) and `cyd_st7789` |
 | `DISPLAY_ROTATION` 1 ↔ 3 | UI is upside down |
 | `DISPLAY_INVERT_COLORS` 1 | black background shows white |
 | `DISPLAY_SWAP_RED_BLUE` 1 | the RED swatch on the boot screen is blue |
@@ -291,7 +291,12 @@ If no serial port appears, install the CH340 driver (Windows/macOS; Linux has it
 Flashing:
 
 1. Open the web flasher in **Chrome or Edge on a computer** (Web Serial; not Safari/iOS).
-2. Plug in the CYD, click **Connect & install**, pick the CH340 port.
+2. Plug in the CYD and click the button for your board variant, then pick the CH340 port:
+   * **Install · ST7789** — newer revisions (USB-C, or micro-USB + USB-C)
+   * **Install · ILI9341** — original board (micro-USB only)
+
+   Wrong variant = mirrored or sideways picture with swapped colours; just flash the other one.
+   The boot log (115200 baud) prints a `controller ID` line that names the chip.
 3. In the install dialog:
    * **leave "Erase device" unticked** for updates — the saved game and touch calibration are kept;
    * tick it for a clean start — the game resets and calibration runs again.
@@ -308,7 +313,7 @@ artifact (and tagged builds attach the same files to the Release). It contains
 `…-merged-fresh-install.bin` — a single image for address `0x0` that **also wipes the saved
 game and calibration**.
 
-To build the same files locally: `pio run -e cyd && bash scripts/package_firmware.sh`
+To build the same files locally: `pio run && bash scripts/package_firmware.sh`
 (needs `pip install "esptool>=5,<6"`).
 
 ### Option B — PlatformIO on the PC (upload over USB directly)
@@ -319,7 +324,8 @@ To build the same files locally: `pio run -e cyd && bash scripts/package_firmwar
 3. Connect the CYD, then click **Upload** (→ in the status bar), or run:
 
    ```
-   pio run -t upload
+   pio run -e cyd_st7789 -t upload      # newer USB-C boards (ST7789)
+   pio run -e cyd -t upload             # original micro-USB boards (ILI9341)
    pio device monitor
    ```
 
@@ -373,7 +379,7 @@ screen and is reserved for a future game menu (e.g. reset-with-confirmation).
 |---|---|---|
 | 1 | Boot screen text reads the right way up, landscape | `DISPLAY_ROTATION` 1 ↔ 3 |
 | 2 | Background black, RED/GREEN/BLUE swatches correct | `DISPLAY_INVERT_COLORS`, `DISPLAY_SWAP_RED_BLUE` |
-| 3 | Screen not white/garbled | `DISPLAY_DRIVER_ST7789` |
+| 3 | Screen not white/garbled/mirrored | flash the other variant (ST7789 ↔ ILI9341) |
 | 4 | Calibration completes; − / + light up exactly where tapped | re-calibrate (section 5) |
 | 5 | Serial shows `idle AB=11` for the encoder | pull-ups / wiring (section 6) |
 | 6 | Clockwise = +1 on the selected player | `ENC_REVERSE` |
