@@ -53,13 +53,13 @@ void drawItem(int8_t i) {
 
   g.fillRect(r.x, r.y, r.w, r.h, theme::BG);
   g.fillRoundRect(r.x, r.y, r.w, r.h, 12, fill);
-  if (i == s_focus) uiRoundFrame(r.x, r.y, r.w, r.h, 12, 3, theme::ACCENT);
+  if (i == s_focus) uiRoundFrame(g, r.x, r.y, r.w, r.h, 12, 3, theme::ACCENT);
 
   g.setFont(theme::fontTitle());
   g.setTextDatum(lgfx::textdatum_t::middle_left);
   g.setTextColor(it.available ? theme::TEXT : theme::TEXT_DIM);
   g.drawString(it.label, r.x + 18, r.cy() + 1);
-  if (it.available) uiChevron(r.x + r.w - 20, r.cy(), 18, 4, true, theme::TEXT_DIM);
+  if (it.available) uiChevron(g, r.x + r.w - 20, r.cy(), 18, 4, true, theme::TEXT_DIM);
 }
 
 void open(int8_t i) {

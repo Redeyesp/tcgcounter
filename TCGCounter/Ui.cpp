@@ -1,8 +1,7 @@
 #include "Ui.h"
 #include <math.h>
 
-void uiRoundFrame(int x, int y, int w, int h, int r, int t, uint16_t color) {
-  auto& g = gfx();
+void uiRoundFrame(lgfx::LovyanGFX& g, int x, int y, int w, int h, int r, int t, uint16_t color) {
   // Straight edges
   g.fillRect(x + r, y, w - 2 * r, t, color);
   g.fillRect(x + r, y + h - t, w - 2 * r, t, color);
@@ -16,9 +15,8 @@ void uiRoundFrame(int x, int y, int w, int h, int r, int t, uint16_t color) {
   g.fillArc(x + r,         y + h - r - 1, ri, r,  90, 180, color);
 }
 
-void uiTextButton(const Rect& r, const char* label, const lgfx::IFont* font,
+void uiTextButton(lgfx::LovyanGFX& g, const Rect& r, const char* label, const lgfx::IFont* font,
                   uint16_t fill, uint16_t textColor, int radius) {
-  auto& g = gfx();
   g.fillRoundRect(r.x, r.y, r.w, r.h, radius, fill);
   g.setFont(font);
   g.setTextDatum(lgfx::textdatum_t::middle_center);
@@ -26,25 +24,23 @@ void uiTextButton(const Rect& r, const char* label, const lgfx::IFont* font,
   g.drawString(label, r.cx(), r.cy());
 }
 
-void uiMinus(int cx, int cy, int len, int thick, uint16_t color) {
-  gfx().fillRect(cx - len / 2, cy - thick / 2, len, thick, color);
+void uiMinus(lgfx::LovyanGFX& g, int cx, int cy, int len, int thick, uint16_t color) {
+  g.fillRect(cx - len / 2, cy - thick / 2, len, thick, color);
 }
 
-void uiPlus(int cx, int cy, int len, int thick, uint16_t color) {
-  gfx().fillRect(cx - len / 2, cy - thick / 2, len, thick, color);
-  gfx().fillRect(cx - thick / 2, cy - len / 2, thick, len, color);
+void uiPlus(lgfx::LovyanGFX& g, int cx, int cy, int len, int thick, uint16_t color) {
+  g.fillRect(cx - len / 2, cy - thick / 2, len, thick, color);
+  g.fillRect(cx - thick / 2, cy - len / 2, thick, len, color);
 }
 
-void uiHomeIcon(int cx, int cy, uint16_t color, uint16_t cutoutColor) {
-  auto& g = gfx();
+void uiHomeIcon(lgfx::LovyanGFX& g, int cx, int cy, uint16_t color, uint16_t cutoutColor) {
   g.fillTriangle(cx - 11, cy - 1, cx + 11, cy - 1, cx, cy - 11, color);  // roof
   g.fillRect(cx - 7, cy - 2, 15, 12, color);                             // walls
   g.fillRect(cx - 2, cy + 3, 5, 7, cutoutColor);                         // door
 }
 
 // Thick line as a filled quad (two triangles), no anti-aliasing / no reads.
-static void thickLine(int x0, int y0, int x1, int y1, int thick, uint16_t color) {
-  auto& g = gfx();
+static void thickLine(lgfx::LovyanGFX& g, int x0, int y0, int x1, int y1, int thick, uint16_t color) {
   const float dx = (float)(x1 - x0), dy = (float)(y1 - y0);
   const float len = sqrtf(dx * dx + dy * dy);
   if (len < 0.5f) return;
@@ -57,11 +53,11 @@ static void thickLine(int x0, int y0, int x1, int y1, int thick, uint16_t color)
   g.fillTriangle(ax, ay, cx, cy, ex, ey, color);
 }
 
-void uiChevron(int cx, int cy, int size, int thick, bool pointRight, uint16_t color) {
+void uiChevron(lgfx::LovyanGFX& g, int cx, int cy, int size, int thick, bool pointRight, uint16_t color) {
   const int h = size / 2;
   const int dir = pointRight ? 1 : -1;
   const int tipX = cx + dir * h / 2, backX = cx - dir * h / 2;
-  thickLine(backX, cy - h, tipX, cy, thick, color);
-  thickLine(tipX, cy, backX, cy + h, thick, color);
-  gfx().fillCircle(tipX, cy, thick / 2, color);  // round the joint
+  thickLine(g, backX, cy - h, tipX, cy, thick, color);
+  thickLine(g, tipX, cy, backX, cy + h, thick, color);
+  g.fillCircle(tipX, cy, thick / 2, color);  // round the joint
 }

@@ -59,6 +59,11 @@ taking it back returns the life. Close with the centre **✕**, by swiping the s
 just wait 10 s (`CMD_MODE_TIMEOUT_MS`). Back in the normal view a card shows **CMD n** (most
 damage taken from one commander) once that player has taken any.
 
+**Seating (4 players around a table).** Lay the device flat in the middle. The top two cards
+(P1, P2) are drawn upside down so the two players on the far side read their own life the right
+way round; their − and + work from their side too. Set `COMMANDER_FLIP_TOP_ROW 0` in `Config.h`
+to turn this off.
+
 **YOU ARE OUT.** At **0 life or less**, or **21 commander damage from one player**, the card turns
 red and shows *YOU ARE OUT*. − / + still work, so a mis-tap can be undone and the player
 "revives" as soon as the numbers are legal again. (Rules live in `GameState.h`: `OUT_AT_LIFE`,

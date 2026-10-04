@@ -46,7 +46,7 @@ void drawBack() {
   g.setFont(theme::fontTitle());
   const int textW = g.textWidth("BACK");
   const int left = BACK.cx() - (textW + 26) / 2;
-  uiChevron(left + 5, BACK.cy(), 18, 4, false, theme::TEXT);
+  uiChevron(g, left + 5, BACK.cy(), 18, 4, false, theme::TEXT);
   g.setTextDatum(lgfx::textdatum_t::middle_left);
   g.setTextColor(theme::TEXT);
   g.drawString("BACK", left + 26, BACK.cy() + 1);
