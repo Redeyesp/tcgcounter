@@ -22,7 +22,8 @@ constexpr uint16_t BUTTON      = rgb565(44, 48, 59);
 constexpr uint16_t BUTTON_DOWN = rgb565(92, 99, 118);
 constexpr uint16_t ACCENT      = rgb565(255, 196, 0);   // focus / pressed highlight
 constexpr uint16_t OUT_PANEL   = rgb565(96, 14, 22);    // card background of a player who is OUT
-constexpr uint16_t DOT_OFF     = rgb565(70, 76, 92);    // page indicator, inactive page
+constexpr uint16_t DANGER      = rgb565(255, 80, 80);   // lethal values (21+ commander damage)
+constexpr uint16_t CMD_PANEL   = rgb565(30, 32, 68);    // opponent cards in commander damage mode
 
 // ---- One identifying colour per player (P1..P4) ----
 constexpr uint16_t PLAYER[4] = {

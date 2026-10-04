@@ -46,14 +46,18 @@ Using it:
 | Where | Touch | Encoder |
 |---|---|---|
 | Home | Tap an entry to open it | Turn = move yellow focus · Press = open |
-| Commander | Tap a card = select player · Tap/hold **−**/**+** = change what the card shows (hold repeats) · **Swipe left/right on the number** = next/previous page · Tap centre **⌂** = Home | Turn = change the selected card ±1 per click · Press = next player (P1→P2→P3→P4→P1) · **Long-press** = next page of the selected card |
+| Commander | Tap a card = select player · Tap/hold **−**/**+** = life (hold repeats) · **Swipe left/right on a card's number** = commander damage mode for that player · Tap centre **⌂** = Home | Turn = selected player's life ±1 per click · Press = next player (P1→P2→P3→P4→P1) · **Long-press** = commander damage mode for the selected player |
+| Commander damage mode | −/+ on an **opponent's** card = damage that opponent dealt to the victim · −/+ on the victim's card = life · Tap centre **✕**, or swipe the victim's card again = close · Swipe another card = switch player | Turn = damage from the focused opponent · Press = next opponent · Long-press = close |
 | Dice / Riftbound | Tap **BACK** | Press = back |
 
-**Commander damage (v0.2, Lotus-style).** Each card has 4 pages: life, then commander damage
-taken **from** each opponent ("FROM P2" etc., in that player's colour, shown as `n /21`). The dots
-under the number show the page. Commander damage also costs life — +1 damage = −1 life, and
-taking it back returns the life. A card flips back to its life page after 10 s without use
-(`CMD_PAGE_TIMEOUT_MS`).
+**Commander damage (Lotus-style).** Swipe left or right on a player's card (or long-press the
+encoder for the selected player). The table switches to *commander damage mode* for that player:
+their own card keeps showing their life ("CMD DAMAGE" underneath), and the **other three cards
+turn indigo and become counters**, e.g. `P2 -> P1   7 /21` = damage P2's commander has dealt to P1.
+Tap −/+ on the opponent who hit you. Commander damage also costs life — +1 damage = −1 life, and
+taking it back returns the life. Close with the centre **✕**, by swiping the same card again, or
+just wait 10 s (`CMD_MODE_TIMEOUT_MS`). Back in the normal view a card shows **CMD n** (most
+damage taken from one commander) once that player has taken any.
 
 **YOU ARE OUT.** At **0 life or less**, or **21 commander damage from one player**, the card turns
 red and shows *YOU ARE OUT*. − / + still work, so a mis-tap can be undone and the player
@@ -380,9 +384,8 @@ Home menu entries already exist, so nothing else changes. Enum values are stored
 add new screens at the end, never renumber.
 
 More Commander counters (poison, energy, tax) belong in `CommanderGame` in `GameState.h` and,
-on screen, as extra pages in `ScreenCommander.cpp` (the page system already exists: add a page
-type next to the commander-damage pages). Screens can also implement the optional `tick()`
-hook in `ScreenModule` for timers.
+on screen, in `ScreenCommander.cpp` — e.g. as another card `Role` next to the commander-damage
+mode. Screens can also implement the optional `tick()` hook in `ScreenModule` for timers.
 
 ---
 

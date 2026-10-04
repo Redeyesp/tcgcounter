@@ -16,7 +16,7 @@
  * ==========================================================================*/
 
 #define FW_NAME     "TCG Counter"
-#define FW_VERSION  "0.2.0"
+#define FW_VERSION  "0.2.1"
 
 /* ============================================================================
  *  1. ROTARY ENCODER (EC11 with push switch)
@@ -152,7 +152,7 @@
 #define TOUCH_TAP_MAX_MS         1200 // navigation buttons ignore presses held longer
 #define TOUCH_SWIPE_MIN_PX       40   // horizontal travel that counts as a swipe
 #define TOUCH_MOVE_CANCEL_PX     18   // movement that stops hold-to-repeat (it's a swipe)
-#define CMD_PAGE_TIMEOUT_MS      10000 // commander-damage page returns to life after this idle time (0 = never)
+#define CMD_MODE_TIMEOUT_MS      10000 // commander-damage mode closes after this idle time (0 = never)
 
 #define ENC_BTN_DEBOUNCE_MS      25   // switch must be stable this long
 #define ENC_LONG_PRESS_MS        800  // long-press event (reserved, unused in V0.1)
