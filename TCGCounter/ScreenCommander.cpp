@@ -319,6 +319,9 @@ void drawCardContent(lgfx::LovyanGFX& c, int ox, int oy, uint8_t i, const CardVi
 void drawCard(uint8_t i, const CardView& v) {
   const Rect q = quadRect(i);
   if (auto* s = cardSprite()) {
+    // pushSprite() sends the buffer by DMA in the background. The buffer must
+    // not be redrawn until that transfer has finished, or cards get mixed up.
+    gfx().waitDMA();
     drawCardContent(*s, 0, 0, i, v);
     if (isFlipped(i)) {  // exact 180° turn: reverse the pixel order
       auto* px = static_cast<uint16_t*>(s->getBuffer());
