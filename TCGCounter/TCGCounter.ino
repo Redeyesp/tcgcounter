@@ -1,8 +1,9 @@
 /* ============================================================================
- *  TCG Counter — Firmware V0.1
+ *  TCG Counter — Firmware
  *  Target: ESP32-2432S028R "Cheap Yellow Display" + external EC11 encoder
  *
- *  V0.1 = Commander life counter + hardware validation.
+ *  Commander (2-6 players, commander damage), Riftbound (to 8) and
+ *  Lorcana (to 20) counters.
  *
  *  All GPIO numbers live in Config.h. This file only wires the modules
  *  together; each module is described at the top of its own header.

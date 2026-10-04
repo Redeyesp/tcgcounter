@@ -10,8 +10,9 @@ static const ScreenModule& moduleFor(Screen s) {
   switch (s) {
     case SCREEN_COMMANDER: return CommanderScreen;
     case SCREEN_COMMANDER_SETUP: return CommanderSetupScreen;
-    case SCREEN_DICE:      return DiceScreen;       // FUTURE: real module in ScreenDice.cpp
-    case SCREEN_RIFTBOUND: return RiftboundScreen;  // FUTURE: real module in ScreenRiftbound.cpp
+    case SCREEN_RIFTBOUND: return RiftboundScreen;
+    case SCREEN_LORCANA:   return LorcanaScreen;
+    // SCREEN_DICE: reserved (off the menu since v0.5) -> Home
     case SCREEN_HOME:
     default:               return HomeScreen;
   }

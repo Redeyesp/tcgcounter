@@ -24,7 +24,8 @@ constexpr uint16_t ACCENT      = rgb565(255, 196, 0);   // focus / pressed highl
 constexpr uint16_t OUT_PANEL   = rgb565(96, 14, 22);    // card background of a player who is OUT
 constexpr uint16_t DANGER      = rgb565(255, 80, 80);   // lethal values (21+ commander damage)
 constexpr uint16_t CMD_PANEL   = rgb565(30, 32, 68);    // opponent cards in commander damage mode
-constexpr uint16_t DANGER_FILL = rgb565(176, 36, 48);   // button that throws something away (START new game)
+constexpr uint16_t WIN_PANEL   = rgb565(62, 48, 6);     // card of a player who reached the target (Riftbound/Lorcana)
+constexpr uint16_t DANGER_FILL = rgb565(176, 36, 48);   // button that throws something away (START / RESTART)
 constexpr uint16_t DANGER_FILL_DOWN = rgb565(120, 24, 32);
 
 // ---- One identifying colour per player (P1..P6) ----

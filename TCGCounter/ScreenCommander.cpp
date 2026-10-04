@@ -41,11 +41,11 @@
 #include "App.h"
 #include "GameState.h"
 #include "CommanderLayout.h"
+#include "TableDraw.h"
 #include "Theme.h"
 #include "Ui.h"
 #include "Config.h"
 #include <stdio.h>
-#include <stdlib.h>
 
 namespace {
 
@@ -337,80 +337,23 @@ void drawCardContent(lgfx::LovyanGFX& c, int ox, int oy, const CardGeom& g, uint
   drawButton(c, ox, oy, g, i, Zone::Plus,  v.pressed == Zone::Plus);
 }
 
-// ---------------------------------------------------------------- off-screen buffer
-// Cards are drawn off-screen (no flicker), turned to face their player by
-// the sprite's rotation, then copied to the LCD. One buffer is reused for
-// every card; a card bigger than the buffer (the 2-player cards) is drawn
-// in horizontal bands.
-constexpr uint32_t CARD_BUF_PIXELS = 20000;  // 40 KB: a whole 159x119 card
+// ---------------------------------------------------------------- whole card / centre buttons
+struct CardJob { const CardGeom* g; uint8_t i; const CardView* v; };
 
-struct CardBuffer { uint16_t* px; uint32_t pixels; };
-
-const CardBuffer& cardBuffer() {
-  static CardBuffer b = [] {
-    CardBuffer r = {nullptr, 0};
-    // Low on memory? Smaller buffers just mean more bands.
-    for (uint32_t n = CARD_BUF_PIXELS; n >= 320 && !r.px; n /= 2) {
-      r.px = static_cast<uint16_t*>(malloc(n * sizeof(uint16_t)));
-      if (r.px) r.pixels = n;
-    }
-    return r;
-  }();
-  return b;
+void paintCard(lgfx::LovyanGFX& c, int ox, int oy, const void* ctx) {
+  const CardJob& j = *static_cast<const CardJob*>(ctx);
+  drawCardContent(c, ox, oy, *j.g, j.i, *j.v);
 }
 
 void drawCard(uint8_t i, const CardView& v) {
   const Seat& s = table().seats[i];
   const CardGeom g = cardGeom(s);
-  const CardBuffer& buf = cardBuffer();
-  if (!buf.px) return;  // no memory at all: nothing sensible to draw
-
-  static lgfx::LGFX_Sprite spr(&gfx());
-  const int w = s.r.w, h = s.r.h;
-  const int maxRows = (int)(buf.pixels / (uint32_t)w);
-  const int bands = (h + maxRows - 1) / maxRows;
-  const int bandH = (h + bands - 1) / bands;
-
-  // pushSprite() would send the buffer by DMA in the background, and drawing
-  // the next band/card into it while that runs mixes cards up on the screen.
-  // So: nothing may still be in flight, and every push is a blocking transfer.
-  gfx().waitDMA();
-  for (int b0 = 0; b0 < h; b0 += bandH) {
-    const int bh = (h - b0 < bandH) ? h - b0 : bandH;
-    spr.setBuffer(buf.px, w, bh, 16);
-    spr.setRotation((uint8_t)s.side);  // turn the drawing to face the seat
-    // Card position (as its player sees it) of this band's first pixel:
-    int ax, ay, bx, by;
-    seatToLocal(s, s.r.x, s.r.y + b0, ax, ay);
-    seatToLocal(s, s.r.x + w - 1, s.r.y + b0 + bh - 1, bx, by);
-    drawCardContent(spr, -(ax < bx ? ax : bx), -(ay < by ? ay : by), g, i, v);
-    gfx().pushImage(s.r.x, s.r.y + b0, w, bh, static_cast<const lgfx::swap565_t*>((void*)buf.px));
-  }
-}
-
-// ---------------------------------------------------------------- centre button(s)
-void drawMenuIcon(int cx, int cy, uint16_t color) {
-  auto& g = gfx();
-  for (int k = -1; k <= 1; ++k) g.fillRect(cx - 8, cy - 1 + 6 * k, 17, 3, color);
-}
-
-void drawCloseIcon(int cx, int cy, uint16_t color) {
-  auto& g = gfx();
-  for (int t = -1; t <= 1; ++t) {  // 3 px thick X
-    g.drawLine(cx - 7 + t, cy - 7, cx + 7 + t, cy + 7, color);
-    g.drawLine(cx - 7 + t, cy + 7, cx + 7 + t, cy - 7, color);
-  }
+  const CardJob job = {&g, i, &v};
+  drawSeatCard(s, paintCard, &job);  // off-screen, turned to face the player, one copy
 }
 
 void drawHub(const HubPos& h, bool pressed) {
-  auto& g = gfx();
-  const uint16_t fill = pressed ? theme::ACCENT : theme::BUTTON;
-  const uint16_t icon = pressed ? theme::TEXT_ON_ACCENT : theme::TEXT;
-  g.fillCircle(h.x, h.y, HUB_R + HUB_MOAT, theme::BG);  // dark moat separates it from the cards
-  g.fillCircle(h.x, h.y, HUB_R, fill);
-  g.drawCircle(h.x, h.y, HUB_R, theme::PANEL_EDGE);
-  if (cmdMode()) drawCloseIcon(h.x, h.y, icon);
-  else           drawMenuIcon(h.x, h.y, icon);
+  drawHubButton(h.x, h.y, cmdMode() ? HubIcon::Close : HubIcon::Menu, pressed);
 }
 
 // ---------------------------------------------------------------- module functions

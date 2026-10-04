@@ -1,5 +1,5 @@
 /* ============================================================================
- *  ScreenHome — main menu: COMMANDER / DICE / RIFTBOUND.
+ *  ScreenHome — main menu: COMMANDER / RIFTBOUND / LORCANA.
  *
  *  Touch:   tap an entry to open it.
  *  Encoder: turn moves the yellow focus frame, press opens the focused entry.
@@ -16,16 +16,15 @@ namespace {
 struct MenuItem {
   const char* label;
   Screen target;
-  bool available;  // false = placeholder in V0.1 (drawn dimmed, opens "Coming Soon")
+  bool available;  // false = drawn dimmed (for a mode that is not ready yet)
 };
 
-// FUTURE: when a module becomes real, flip `available` to true.
 // To add a new mode, add a Screen value, a ScreenModule and an entry here
 // (then re-space ITEM_Y / ITEM_H so the list still fits 240 px).
 const MenuItem ITEMS[] = {
   {"COMMANDER", SCREEN_COMMANDER_SETUP, true},  // menu first: players / continue / new game
-  {"DICE",      SCREEN_DICE,      false},
-  {"RIFTBOUND", SCREEN_RIFTBOUND, false},
+  {"RIFTBOUND", SCREEN_RIFTBOUND,       true},  // 2 players, first to 8
+  {"LORCANA",   SCREEN_LORCANA,         true},  // 2 players, first to 20 lore
 };
 constexpr int8_t ITEM_COUNT = sizeof(ITEMS) / sizeof(ITEMS[0]);
 

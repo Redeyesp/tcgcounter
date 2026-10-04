@@ -77,13 +77,50 @@ void commanderSelectNext(CommanderGame& g) {
   g.selected = (uint8_t)((g.selected + 1) % g.players);
 }
 
+void scoreNewGame(ScoreGame& g) {
+  for (uint8_t i = 0; i < SCORE_PLAYERS; ++i) g.score[i] = 0;
+  g.selected = 0;
+}
+
+bool scoreIsFresh(const ScoreGame& g) {
+  for (uint8_t i = 0; i < SCORE_PLAYERS; ++i)
+    if (g.score[i] != 0) return false;
+  return true;
+}
+
+bool scoreAdjust(ScoreGame& g, uint8_t player, int delta, uint8_t target) {
+  if (player >= SCORE_PLAYERS || delta == 0) return false;
+  int v = (int)g.score[player] + delta;
+  if (v < 0) v = 0;
+  if (v > target) v = target;
+  if (v == g.score[player]) return false;
+  g.score[player] = (uint8_t)v;
+  return true;
+}
+
+void scoreSelect(ScoreGame& g, uint8_t player) {
+  if (player < SCORE_PLAYERS) g.selected = player;
+}
+
+void scoreSelectNext(ScoreGame& g) { g.selected = (uint8_t)((g.selected + 1) % SCORE_PLAYERS); }
+
+static void scoreSanitize(ScoreGame& g, uint8_t target) {
+  for (uint8_t i = 0; i < SCORE_PLAYERS; ++i)
+    if (g.score[i] > target) g.score[i] = target;
+  if (g.selected >= SCORE_PLAYERS) g.selected = 0;
+}
+
 void appStateSetDefaults(AppState& s) {
   s.screen = SCREEN_HOME;
   commanderNewGame(s.commander);
+  scoreNewGame(s.riftbound);
+  scoreNewGame(s.lorcana);
 }
 
 void appStateSanitize(AppState& s) {
-  if (s.screen >= SCREEN_COUNT) s.screen = SCREEN_HOME;
+  if (s.screen >= SCREEN_COUNT || s.screen == SCREEN_DICE) s.screen = SCREEN_HOME;
+  scoreSanitize(s.riftbound, RIFTBOUND_TARGET);
+  scoreSanitize(s.lorcana, LORCANA_TARGET);
   s.commander.players = clampPlayers(s.commander.players);
   if (s.commander.selected >= s.commander.players) s.commander.selected = 0;
   for (uint8_t i = 0; i < COMMANDER_MAX_PLAYERS; ++i) {
@@ -105,6 +142,14 @@ bool operator==(const CommanderGame& a, const CommanderGame& b) {
   return true;
 }
 
+bool operator==(const ScoreGame& a, const ScoreGame& b) {
+  if (a.selected != b.selected) return false;
+  for (uint8_t i = 0; i < SCORE_PLAYERS; ++i)
+    if (a.score[i] != b.score[i]) return false;
+  return true;
+}
+
 bool operator==(const AppState& a, const AppState& b) {
-  return a.screen == b.screen && a.commander == b.commander;
+  return a.screen == b.screen && a.commander == b.commander &&
+         a.riftbound == b.riftbound && a.lorcana == b.lorcana;
 }

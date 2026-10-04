@@ -13,9 +13,10 @@
 enum Screen : uint8_t {
   SCREEN_HOME      = 0,
   SCREEN_COMMANDER = 1,
-  SCREEN_DICE      = 2,
+  SCREEN_DICE      = 2,  // reserved: Dice was taken off the menu in v0.5 (loads as Home)
   SCREEN_RIFTBOUND = 3,
   SCREEN_COMMANDER_SETUP = 4,  // player count / continue / new game (v0.4+)
+  SCREEN_LORCANA   = 5,        // v0.5+
   SCREEN_COUNT
 };
 
@@ -46,15 +47,24 @@ struct CommanderGame {
 
 enum class OutReason : uint8_t { None, Life, CommanderDamage };
 
-/* FUTURE: add game data for new modes here, e.g.
- *   struct DiceState     { uint8_t sides; uint8_t count; int16_t lastRoll[6]; };
- *   struct RiftboundGame { int16_t points[2]; ... };
- * then add a member to AppState below and extend AppStorage.cpp. */
+// ---- Score race for two players (Riftbound, Lorcana): first to the target wins.
+constexpr uint8_t SCORE_PLAYERS    = 2;
+constexpr uint8_t RIFTBOUND_TARGET = 8;   // victory points
+constexpr uint8_t LORCANA_TARGET   = 20;  // lore
+
+struct ScoreGame {
+  uint8_t score[SCORE_PLAYERS];  // 0..target
+  uint8_t selected;              // 0 = P1, 1 = P2 (encoder target)
+};
+
+/* FUTURE: add game data for new modes here (e.g. struct DiceState), add a
+ * member to AppState below and extend AppStorage.cpp. */
 
 struct AppState {
   Screen        screen;
   CommanderGame commander;
-  // FUTURE: DiceState dice;  RiftboundGame riftbound;
+  ScoreGame     riftbound;  // target RIFTBOUND_TARGET
+  ScoreGame     lorcana;    // target LORCANA_TARGET
 };
 
 extern AppState g_state;  // the single live copy of all persistent state
@@ -63,8 +73,10 @@ void appStateSetDefaults(AppState& s);
 void appStateSanitize(AppState& s);  // clamp anything loaded from flash
 
 bool operator==(const CommanderGame& a, const CommanderGame& b);
+bool operator==(const ScoreGame& a, const ScoreGame& b);
 bool operator==(const AppState& a, const AppState& b);
 inline bool operator!=(const CommanderGame& a, const CommanderGame& b) { return !(a == b); }
+inline bool operator!=(const ScoreGame& a, const ScoreGame& b) { return !(a == b); }
 inline bool operator!=(const AppState& a, const AppState& b) { return !(a == b); }
 
 // ---- Commander rules ----
@@ -90,4 +102,14 @@ uint8_t commanderOpponent(uint8_t player, uint8_t index);
 OutReason commanderOutReason(const CommanderGame& g, uint8_t player, uint8_t* source = nullptr);
 inline bool commanderIsOut(const CommanderGame& g, uint8_t player) {
   return commanderOutReason(g, player) != OutReason::None;
+}
+
+// ---- Score race rules (Riftbound, Lorcana) ----
+void scoreNewGame(ScoreGame& g);                // both at 0, P1 selected
+bool scoreIsFresh(const ScoreGame& g);          // both at 0: a restart would lose nothing
+bool scoreAdjust(ScoreGame& g, uint8_t player, int delta, uint8_t target);  // clamps 0..target
+void scoreSelect(ScoreGame& g, uint8_t player);
+void scoreSelectNext(ScoreGame& g);             // P1 <-> P2
+inline bool scoreHasWon(const ScoreGame& g, uint8_t player, uint8_t target) {
+  return player < SCORE_PLAYERS && g.score[player] >= target;
 }

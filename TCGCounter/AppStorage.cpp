@@ -14,6 +14,8 @@
  *                             36 bytes (6x6) from v0.4,
  *                             16 bytes (4x4) in v0.2-v0.3 -> converted on load,
  *                             missing (v0.1) -> all zero
+ *                        rb   (3 bytes) Riftbound: P1 score, P2 score, selected (v0.5+)
+ *                        lc   (3 bytes) Lorcana:   P1 lore,  P2 lore,  selected (v0.5+)
  *  namespace "tcgtouch"  calv (u8)  calibration format version
  *                        cal  (16 bytes) LovyanGFX calibration (8 x u16)
  *
@@ -32,6 +34,22 @@ static AppState s_saved;              // what flash currently holds
 static bool     s_flashHasData = false;
 static AppState s_lastSeen;           // g_state as of the previous loop
 static uint32_t s_lastChangeMs = 0;
+
+// ScoreGame <-> 3-byte blob {score P1, score P2, selected}
+static const size_t SCORE_BLOB = SCORE_PLAYERS + 1;
+static void loadScore(Preferences& p, const char* key, ScoreGame& g) {
+  if (!p.isKey(key) || p.getBytesLength(key) != SCORE_BLOB) return;  // keep defaults
+  uint8_t b[SCORE_BLOB];
+  p.getBytes(key, b, sizeof(b));
+  for (uint8_t i = 0; i < SCORE_PLAYERS; ++i) g.score[i] = b[i];
+  g.selected = b[SCORE_PLAYERS];
+}
+static void saveScore(Preferences& p, const char* key, const ScoreGame& g) {
+  uint8_t b[SCORE_BLOB];
+  for (uint8_t i = 0; i < SCORE_PLAYERS; ++i) b[i] = g.score[i];
+  b[SCORE_PLAYERS] = g.selected;
+  p.putBytes(key, b, sizeof(b));
+}
 
 void loadState() {
   appStateSetDefaults(g_state);
@@ -58,6 +76,8 @@ void loadState() {
             for (uint8_t j = 0; j < OLD_CD_SIDE; ++j) c.cmdDamage[i][j] = old[i][j];
         }
       }
+      loadScore(p, "rb", g_state.riftbound);
+      loadScore(p, "lc", g_state.lorcana);
       restored = true;
     }
     p.end();
@@ -75,6 +95,8 @@ void loadState() {
        restored ? "restored" : "no saved game, defaults", c.players,
        c.life[0], c.life[1], c.life[2], c.life[3], c.life[4], c.life[5],
        c.selected + 1, (unsigned)g_state.screen);
+  LOGF("[storage] riftbound %u-%u, lorcana %u-%u\n", g_state.riftbound.score[0],
+       g_state.riftbound.score[1], g_state.lorcana.score[0], g_state.lorcana.score[1]);
 }
 
 static void writeState(const AppState& s) {
@@ -109,6 +131,8 @@ static void writeState(const AppState& s) {
     p.putBytes("cd", s.commander.cmdDamage, sizeof(s.commander.cmdDamage));
     ++writes;
   }
+  if (all || s.riftbound != s_saved.riftbound) { saveScore(p, "rb", s.riftbound); ++writes; }
+  if (all || s.lorcana != s_saved.lorcana)     { saveScore(p, "lc", s.lorcana);   ++writes; }
   p.end();
 
   s_saved = s;

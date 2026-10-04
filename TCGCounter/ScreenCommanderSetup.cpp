@@ -26,12 +26,12 @@
 #include "GameState.h"
 #include "Theme.h"
 #include "Ui.h"
+#include "UiConfirm.h"
 #include "Config.h"
 #include <stdio.h>
 
 namespace {
 
-// ---------------------------------------------------------------- menu page
 constexpr int8_t ITEM_BACK = 0, ITEM_CONTINUE = 1, ITEM_FIRST_COUNT = 2;
 constexpr int8_t COUNT_BUTTONS = COMMANDER_MAX_PLAYERS - COMMANDER_MIN_PLAYERS + 1;  // 2..6
 constexpr int8_t ITEM_COUNT = ITEM_FIRST_COUNT + COUNT_BUTTONS;
@@ -50,42 +50,27 @@ Rect itemRect(int8_t item) {
   return Rect{(int16_t)(COUNT_X0 + k * COUNT_PITCH), (int16_t)COUNT_Y, (int16_t)COUNT_W, (int16_t)COUNT_H};
 }
 
-// ---------------------------------------------------------------- question page
-constexpr int8_t ASK_CANCEL = 0, ASK_START = 1, ASK_COUNT = 2;
-constexpr Rect ASK_BTN[ASK_COUNT] = {{16, 164, 136, 60}, {168, 164, 136, 60}};
-
 // ---------------------------------------------------------------- UI-only state
-uint8_t s_ask = 0;              // players of the new game being asked about; 0 = menu page
+ConfirmDialog s_ask;            // "NEW GAME?"
+uint8_t s_askPlayers = 0;       // players of the new game being asked about
 int8_t  s_focus = ITEM_CONTINUE;
-int8_t  s_askFocus = ASK_CANCEL;
-int8_t  s_pressed = -1;         // button under the finger (menu item or ASK_* on the question page)
-
-uint8_t s_drawnAsk = 0xFF;
-int8_t  s_drawnFocus = -1, s_drawnAskFocus = -1, s_drawnPressed = -1;
-
-int8_t itemCount() { return s_ask ? ASK_COUNT : ITEM_COUNT; }
+int8_t  s_pressed = -1;         // menu item under the finger
+bool    s_drawnAsk = false;
+int8_t  s_drawnFocus = -1, s_drawnPressed = -1;
 
 int8_t hitTest(int x, int y) {
-  for (int8_t i = 0; i < itemCount(); ++i) {
-    const Rect r = s_ask ? ASK_BTN[i] : itemRect(i);
-    if (r.contains(x, y)) return i;
-  }
+  for (int8_t i = 0; i < ITEM_COUNT; ++i)
+    if (itemRect(i).contains(x, y)) return i;
   return -1;
 }
 
 // ---------------------------------------------------------------- actions
 void startGame(uint8_t players) {
   commanderNewGame(g_state.commander, players);
-  s_ask = 0;
   goToScreen(SCREEN_COMMANDER);
 }
 
 void choose(int8_t item) {
-  if (s_ask) {
-    if (item == ASK_START) startGame(s_ask);
-    else if (item == ASK_CANCEL) s_ask = 0;
-    return;
-  }
   if (item == ITEM_BACK) {
     goToScreen(SCREEN_HOME);
   } else if (item == ITEM_CONTINUE) {
@@ -94,9 +79,12 @@ void choose(int8_t item) {
     const uint8_t n = playersFor(item);
     if (commanderIsFresh(g_state.commander)) {
       startGame(n);  // nothing to lose: no need to ask
-    } else {
-      s_ask = n;     // a new game wipes the running one: ask first
-      s_askFocus = ASK_CANCEL;
+    } else {         // a new game wipes the running one: ask first
+      char body[48];
+      snprintf(body, sizeof(body), "%u players, everyone at %d life", (unsigned)n,
+               (int)COMMANDER_START_LIFE);
+      s_askPlayers = n;
+      s_ask.open("NEW GAME?", body, "The current game will be lost.", "START");
     }
   }
 }
@@ -141,23 +129,6 @@ void drawMenuItem(int8_t item) {
   }
 }
 
-void drawAskButton(int8_t i) {
-  auto& g = gfx();
-  const Rect& r = ASK_BTN[i];
-  const bool pressed = (i == s_pressed);
-  uint16_t fill, text;
-  if (i == ASK_START) {
-    fill = pressed ? theme::DANGER_FILL_DOWN : theme::DANGER_FILL;
-    text = theme::TEXT;
-  } else {
-    fill = pressed ? theme::BUTTON_DOWN : theme::BUTTON;
-    text = theme::TEXT;
-  }
-  g.fillRect(r.x, r.y, r.w, r.h, theme::BG);
-  uiTextButton(g, r, i == ASK_START ? "START" : "CANCEL", theme::fontButton(), fill, text, 12);
-  if (i == s_askFocus) uiRoundFrame(g, r.x, r.y, r.w, r.h, 12, 3, theme::ACCENT);
-}
-
 void drawMenuPage() {
   auto& g = gfx();
   g.setFont(theme::fontButton());
@@ -175,48 +146,31 @@ void drawMenuPage() {
   for (int8_t i = 0; i < ITEM_COUNT; ++i) drawMenuItem(i);
 }
 
-void drawAskPage() {
-  auto& g = gfx();
-  char buf[40];
-  g.setTextDatum(lgfx::textdatum_t::middle_center);
-  g.setFont(theme::fontTitle());
-  g.setTextColor(theme::TEXT);
-  g.drawString("NEW GAME?", 160, 44);
-  g.setFont(theme::fontBody());
-  snprintf(buf, sizeof(buf), "%u players, everyone at %d life", (unsigned)s_ask, (int)COMMANDER_START_LIFE);
-  g.drawString(buf, 160, 92);
-  g.setFont(theme::fontSmall());
-  g.setTextColor(theme::DANGER);
-  g.drawString("The current game will be lost.", 160, 124);
-  for (int8_t i = 0; i < ASK_COUNT; ++i) drawAskButton(i);
-}
-
 // ---------------------------------------------------------------- module functions
 void onEnter() {
-  s_ask = 0;
+  s_ask.close();
   s_pressed = -1;
   s_focus = ITEM_CONTINUE;
 }
 
 void handleInput(const InputEvent& e) {
+  if (s_ask.isOpen()) {
+    if (s_ask.handleInput(e) == ConfirmResult::Confirm) startGame(s_askPlayers);
+    return;
+  }
   switch (e.type) {
     case InputType::EncoderTurn: {
-      int8_t& f = s_ask ? s_askFocus : s_focus;
-      const int n = itemCount();
-      int next = (f + e.delta) % n;
-      if (next < 0) next += n;
-      f = (int8_t)next;
+      int next = (s_focus + e.delta) % ITEM_COUNT;
+      if (next < 0) next += ITEM_COUNT;
+      s_focus = (int8_t)next;
       break;
     }
     case InputType::EncoderClick:
-      choose(s_ask ? s_askFocus : s_focus);
-      break;
-    case InputType::EncoderLongPress:
-      if (s_ask) s_ask = 0;  // = CANCEL
+      choose(s_focus);
       break;
     case InputType::TouchDown:
       s_pressed = hitTest(e.x, e.y);
-      if (s_pressed >= 0) (s_ask ? s_askFocus : s_focus) = s_pressed;
+      if (s_pressed >= 0) s_focus = s_pressed;
       break;
     case InputType::TouchUp: {
       const int8_t released = s_pressed;
@@ -231,29 +185,29 @@ void handleInput(const InputEvent& e) {
 
 void render(bool full) {
   auto& g = gfx();
-  if (full || s_ask != s_drawnAsk) {  // page changed: repaint everything
+  const bool ask = s_ask.isOpen();
+  const bool pageChanged = ask != s_drawnAsk;
+  s_drawnAsk = ask;
+  if (ask) {
+    s_ask.render(full || pageChanged);
+    return;
+  }
+  if (full || pageChanged) {  // (back on) the menu page: repaint everything
     g.startWrite();
     g.fillScreen(theme::BG);
-    if (s_ask) drawAskPage();
-    else drawMenuPage();
+    drawMenuPage();
     g.endWrite();
   } else {
-    const int8_t focus = s_ask ? s_askFocus : s_focus;
-    const int8_t drawnFocus = s_ask ? s_drawnAskFocus : s_drawnFocus;
-    if (focus == drawnFocus && s_pressed == s_drawnPressed) return;
+    if (s_focus == s_drawnFocus && s_pressed == s_drawnPressed) return;
     g.startWrite();
-    for (int8_t i = 0; i < itemCount(); ++i) {
-      const bool was = (i == drawnFocus || i == s_drawnPressed);
-      const bool is  = (i == focus || i == s_pressed);
-      if (!was && !is) continue;
-      if (s_ask) drawAskButton(i);
-      else drawMenuItem(i);
+    for (int8_t i = 0; i < ITEM_COUNT; ++i) {
+      const bool was = (i == s_drawnFocus || i == s_drawnPressed);
+      const bool is  = (i == s_focus || i == s_pressed);
+      if (was || is) drawMenuItem(i);
     }
     g.endWrite();
   }
-  s_drawnAsk = s_ask;
   s_drawnFocus = s_focus;
-  s_drawnAskFocus = s_askFocus;
   s_drawnPressed = s_pressed;
 }
 
