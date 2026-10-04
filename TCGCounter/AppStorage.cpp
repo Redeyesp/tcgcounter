@@ -1,5 +1,6 @@
 #include "AppStorage.h"
 #include <Preferences.h>
+#include <string.h>
 #include "GameState.h"
 #include "Log.h"
 
@@ -8,6 +9,8 @@
  *                        p1..p4 (i16) Commander life totals
  *                        sel  (u8)  selected player 0..3
  *                        scr  (u8)  last active Screen
+ *                        cd   (16 bytes) commander damage [victim][source] (v0.2+;
+ *                             missing on older saves -> all zero)
  *  namespace "tcgtouch"  calv (u8)  calibration format version
  *                        cal  (16 bytes) LovyanGFX calibration (8 x u16)
  *
@@ -37,6 +40,8 @@ void loadState() {
         g_state.commander.life[i] = p.getShort(LIFE_KEYS[i], COMMANDER_START_LIFE);
       g_state.commander.selected = p.getUChar("sel", 0);
       g_state.screen = (Screen)p.getUChar("scr", SCREEN_HOME);
+      if (p.isKey("cd") && p.getBytesLength("cd") == sizeof(g_state.commander.cmdDamage))
+        p.getBytes("cd", g_state.commander.cmdDamage, sizeof(g_state.commander.cmdDamage));
       restored = true;
     }
     p.end();
@@ -77,6 +82,11 @@ static void writeState(const AppState& s) {
   }
   if (all || s.screen != s_saved.screen) {
     p.putUChar("scr", (uint8_t)s.screen);
+    ++writes;
+  }
+  if (all || memcmp(s.commander.cmdDamage, s_saved.commander.cmdDamage,
+                    sizeof(s.commander.cmdDamage)) != 0) {
+    p.putBytes("cd", s.commander.cmdDamage, sizeof(s.commander.cmdDamage));
     ++writes;
   }
   p.end();

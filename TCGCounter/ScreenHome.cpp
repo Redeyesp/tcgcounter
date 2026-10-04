@@ -86,7 +86,7 @@ void handleInput(const InputEvent& e) {
     case InputType::TouchUp: {
       const int8_t released = s_pressed;
       s_pressed = -1;
-      if (released >= 0 && e.durationMs <= TOUCH_TAP_MAX_MS) open(released);
+      if (released >= 0 && isTap(e, TOUCH_TAP_MAX_MS)) open(released);
       break;
     }
     default:
@@ -127,4 +127,4 @@ void render(bool full) {
 
 }  // namespace
 
-const ScreenModule HomeScreen = {"Home", onEnter, handleInput, render};
+const ScreenModule HomeScreen = {"Home", onEnter, handleInput, render, nullptr};

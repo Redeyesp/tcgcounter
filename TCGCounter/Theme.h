@@ -21,6 +21,8 @@ constexpr uint16_t TEXT_ON_ACCENT = rgb565(10, 10, 12);
 constexpr uint16_t BUTTON      = rgb565(44, 48, 59);
 constexpr uint16_t BUTTON_DOWN = rgb565(92, 99, 118);
 constexpr uint16_t ACCENT      = rgb565(255, 196, 0);   // focus / pressed highlight
+constexpr uint16_t OUT_PANEL   = rgb565(96, 14, 22);    // card background of a player who is OUT
+constexpr uint16_t DOT_OFF     = rgb565(70, 76, 92);    // page indicator, inactive page
 
 // ---- One identifying colour per player (P1..P4) ----
 constexpr uint16_t PLAYER[4] = {

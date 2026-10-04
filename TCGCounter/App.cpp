@@ -35,6 +35,8 @@ void goToScreen(Screen s) {
 void updateApplication() {
   InputEvent e;
   while (popInput(e)) moduleFor(g_state.screen).handleInput(e);
+  const ScreenModule& m = moduleFor(g_state.screen);
+  if (m.tick) m.tick(millis());
 }
 
 void renderIfNeeded() {

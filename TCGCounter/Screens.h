@@ -13,6 +13,7 @@
  *  The Screen enum, App.cpp's moduleFor() and the Home menu already know
  *  about SCREEN_DICE and SCREEN_RIFTBOUND, so nothing else changes.
  * ==========================================================================*/
+#include <stdint.h>
 #include "InputEvents.h"
 
 struct ScreenModule {
@@ -20,6 +21,7 @@ struct ScreenModule {
   void (*onEnter)();                       // screen just became active
   void (*handleInput)(const InputEvent&);  // one touch/encoder event
   void (*render)(bool full);               // full=true: repaint all; false: changes only
+  void (*tick)(uint32_t nowMs);            // optional (may be nullptr): timers, called every loop
 };
 
 extern const ScreenModule HomeScreen;       // ScreenHome.cpp

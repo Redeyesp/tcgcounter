@@ -46,10 +46,21 @@ Using it:
 | Where | Touch | Encoder |
 |---|---|---|
 | Home | Tap an entry to open it | Turn = move yellow focus · Press = open |
-| Commander | Tap a quadrant = select player · Tap/hold **−**/**+** = life ∓1 and selects that player (hold repeats) · Tap centre **⌂** = Home | Turn = selected player ±1 per click · Press = next player (P1→P2→P3→P4→P1) |
+| Commander | Tap a card = select player · Tap/hold **−**/**+** = change what the card shows (hold repeats) · **Swipe left/right on the number** = next/previous page · Tap centre **⌂** = Home | Turn = change the selected card ±1 per click · Press = next player (P1→P2→P3→P4→P1) · **Long-press** = next page of the selected card |
 | Dice / Riftbound | Tap **BACK** | Press = back |
 
-There is deliberately **no reset** in V0.1 — nothing on screen can wipe a game. A future
+**Commander damage (v0.2, Lotus-style).** Each card has 4 pages: life, then commander damage
+taken **from** each opponent ("FROM P2" etc., in that player's colour, shown as `n /21`). The dots
+under the number show the page. Commander damage also costs life — +1 damage = −1 life, and
+taking it back returns the life. A card flips back to its life page after 10 s without use
+(`CMD_PAGE_TIMEOUT_MS`).
+
+**YOU ARE OUT.** At **0 life or less**, or **21 commander damage from one player**, the card turns
+red and shows *YOU ARE OUT*. − / + still work, so a mis-tap can be undone and the player
+"revives" as soon as the numbers are legal again. (Rules live in `GameState.h`: `OUT_AT_LIFE`,
+`CMD_DAMAGE_LETHAL`, `CMD_DAMAGE_AFFECTS_LIFE`.)
+
+There is deliberately **no reset** yet — nothing on screen can wipe a game. A future
 reset will go through a confirmation screen (see `commanderNewGame()` in `GameState.h`).
 
 ---
@@ -153,7 +164,7 @@ TCG_Counter_V0.1/
 Key design rules:
 
 * **Input is device-independent.** Screens receive `InputEvent`s (`TouchDown`, `TouchRepeat`,
-  `TouchUp`, `EncoderTurn`, `EncoderClick`, `EncoderLongPress`), never pins. Touch and
+  `TouchSwipe`, `TouchUp`, `EncoderTurn`, `EncoderClick`, `EncoderLongPress`), never pins. Touch and
   encoder are always active together.
 * **Game state knows nothing about the UI.** `GameState.cpp` has no drawing and no
   hardware calls. Screens change it through functions like `commanderAdjustLife()`.
@@ -174,6 +185,7 @@ Key design rules:
 | `tcg` | `p1`…`p4` | Commander life totals |
 | `tcg` | `sel` | selected player |
 | `tcg` | `scr` | last active screen (the device boots back into Commander) |
+| `tcg` | `cd` | commander damage, 4×4 bytes `[victim][source]` (missing in v0.1 saves → all 0) |
 | `tcgtouch` | `cal`, `calv` | touch calibration (separate, so a future game reset can't erase it) |
 
 ---
@@ -367,9 +379,10 @@ The hooks are already in place and are marked `FUTURE:` in the code:
 Home menu entries already exist, so nothing else changes. Enum values are stored in flash —
 add new screens at the end, never renumber.
 
-Commander extras (commander damage, poison, energy, tax) belong in `CommanderGame` in
-`GameState.h` and in `ScreenCommander.cpp`. `EncoderLongPress` is already delivered to every
-screen and is reserved for a future game menu (e.g. reset-with-confirmation).
+More Commander counters (poison, energy, tax) belong in `CommanderGame` in `GameState.h` and,
+on screen, as extra pages in `ScreenCommander.cpp` (the page system already exists: add a page
+type next to the commander-damage pages). Screens can also implement the optional `tick()`
+hook in `ScreenModule` for timers.
 
 ---
 

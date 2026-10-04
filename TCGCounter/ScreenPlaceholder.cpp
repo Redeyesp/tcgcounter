@@ -65,7 +65,7 @@ void handleInput(const InputEvent& e) {
     case InputType::TouchUp: {
       const bool released = s_backPressed;
       s_backPressed = false;
-      if (released && e.durationMs <= TOUCH_TAP_MAX_MS) goToScreen(SCREEN_HOME);
+      if (released && isTap(e, TOUCH_TAP_MAX_MS)) goToScreen(SCREEN_HOME);
       break;
     }
     default:
@@ -101,5 +101,5 @@ void render(bool full) {
 
 }  // namespace
 
-const ScreenModule DiceScreen      = {"Dice", onEnter, handleInput, render};       // FUTURE: move to ScreenDice.cpp
-const ScreenModule RiftboundScreen = {"Riftbound", onEnter, handleInput, render};  // FUTURE: move to ScreenRiftbound.cpp
+const ScreenModule DiceScreen      = {"Dice", onEnter, handleInput, render, nullptr};       // FUTURE: move to ScreenDice.cpp
+const ScreenModule RiftboundScreen = {"Riftbound", onEnter, handleInput, render, nullptr};  // FUTURE: move to ScreenRiftbound.cpp

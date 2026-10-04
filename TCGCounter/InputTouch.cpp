@@ -14,6 +14,8 @@ TouchState s_state      = TouchState::Idle;
 uint8_t    s_candidates = 0;   // consecutive "touching" samples while idle
 int32_t    s_sumX = 0, s_sumY = 0;
 int16_t    s_downX = 0, s_downY = 0;
+int16_t    s_lastX = 0, s_lastY = 0;   // latest good sample while pressed
+bool       s_moved = false;             // finger travelled: swipe, not tap/hold
 uint32_t   s_lastPoll   = 0;
 uint32_t   s_downAt     = 0;
 uint32_t   s_lastSeen   = 0;
@@ -34,12 +36,13 @@ bool rawTouchPresent() {
   return lcd().getTouchRaw(&tp, 1) > 0;
 }
 
-void emit(InputType type, uint16_t duration = 0) {
+void emit(InputType type, uint16_t duration = 0, int16_t delta = 0) {
   InputEvent e;
   e.type = type;
   e.x = s_downX;
   e.y = s_downY;
   e.durationMs = duration;
+  e.delta = delta;
   if (!pushInput(e)) LOGF("[touch] event queue full, dropped\n");
 }
 
@@ -136,6 +139,9 @@ void updateTouch() {
     s_candidates = 0;
     s_sumX = s_sumY = 0;
     s_state = TouchState::Pressed;
+    s_lastX = s_downX;
+    s_lastY = s_downY;
+    s_moved = false;
     s_downAt = s_lastSeen = now;
     s_nextRepeat = now + TOUCH_REPEAT_DELAY_MS;
     LOGF("[touch] down x=%d y=%d\n", s_downX, s_downY);
@@ -146,14 +152,25 @@ void updateTouch() {
   // Pressed
   if (touching) {
     s_lastSeen = now;
-    if ((int32_t)(now - s_nextRepeat) >= 0) {
+    s_lastX = x;
+    s_lastY = y;
+    if (!s_moved && touchMoved(x - s_downX, y - s_downY)) s_moved = true;
+    if (!s_moved && (int32_t)(now - s_nextRepeat) >= 0) {
       s_nextRepeat = now + TOUCH_REPEAT_INTERVAL_MS;
       emit(InputType::TouchRepeat);
     }
   } else if (now - s_lastSeen >= TOUCH_RELEASE_MS) {
     s_state = TouchState::Idle;
     const uint32_t held = s_lastSeen - s_downAt;
+    const uint16_t held16 = (uint16_t)(held > 65535 ? 65535 : held);
+    const int8_t swipe = classifySwipe(s_lastX - s_downX, s_lastY - s_downY);
+    if (swipe != 0) {
+      LOGF("[touch] swipe %s (dx=%d dy=%d)\n", swipe < 0 ? "left" : "right",
+           s_lastX - s_downX, s_lastY - s_downY);
+      emit(InputType::TouchSwipe, held16, swipe);
+    }
     LOGF("[touch] up (held %lu ms)\n", (unsigned long)held);
-    emit(InputType::TouchUp, (uint16_t)(held > 65535 ? 65535 : held));
+    emit(InputType::TouchUp, held16,
+         swipe != 0 ? swipe : (s_moved ? TOUCH_UP_DRAGGED : TOUCH_UP_TAP));
   }
 }
