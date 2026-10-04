@@ -9,6 +9,7 @@ static bool   s_fullRedraw  = true;
 static const ScreenModule& moduleFor(Screen s) {
   switch (s) {
     case SCREEN_COMMANDER: return CommanderScreen;
+    case SCREEN_COMMANDER_SETUP: return CommanderSetupScreen;
     case SCREEN_DICE:      return DiceScreen;       // FUTURE: real module in ScreenDice.cpp
     case SCREEN_RIFTBOUND: return RiftboundScreen;  // FUTURE: real module in ScreenRiftbound.cpp
     case SCREEN_HOME:

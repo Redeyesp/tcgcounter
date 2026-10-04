@@ -15,10 +15,13 @@ enum Screen : uint8_t {
   SCREEN_COMMANDER = 1,
   SCREEN_DICE      = 2,
   SCREEN_RIFTBOUND = 3,
+  SCREEN_COMMANDER_SETUP = 4,  // player count / continue / new game (v0.4+)
   SCREEN_COUNT
 };
 
-constexpr uint8_t COMMANDER_PLAYERS    = 4;
+constexpr uint8_t COMMANDER_MIN_PLAYERS     = 2;
+constexpr uint8_t COMMANDER_MAX_PLAYERS     = 6;
+constexpr uint8_t COMMANDER_DEFAULT_PLAYERS = 4;  // first boot, and saves from before v0.4
 constexpr int16_t COMMANDER_START_LIFE = 40;
 constexpr int16_t LIFE_MIN             = -99;   // keeps numbers to 3 characters
 constexpr int16_t LIFE_MAX             = 999;
@@ -34,9 +37,10 @@ constexpr uint8_t CMD_DAMAGE_MAX       = 99;
 constexpr bool    CMD_DAMAGE_AFFECTS_LIFE = true;
 
 struct CommanderGame {
-  int16_t life[COMMANDER_PLAYERS];
-  uint8_t selected;  // 0..3 = P1..P4
-  uint8_t cmdDamage[COMMANDER_PLAYERS][COMMANDER_PLAYERS];  // [victim][source]; diagonal unused
+  uint8_t players;   // 2..6 players at the table (seats 0..players-1 are in use)
+  int16_t life[COMMANDER_MAX_PLAYERS];
+  uint8_t selected;  // 0..players-1 = P1..Pn
+  uint8_t cmdDamage[COMMANDER_MAX_PLAYERS][COMMANDER_MAX_PLAYERS];  // [victim][source]; diagonal unused
   // FUTURE: poison, energy, commander tax.
 };
 
@@ -64,18 +68,22 @@ inline bool operator!=(const CommanderGame& a, const CommanderGame& b) { return 
 inline bool operator!=(const AppState& a, const AppState& b) { return !(a == b); }
 
 // ---- Commander rules ----
-void commanderNewGame(CommanderGame& g);  // NOT reachable from the UI in V0.1.
-                                          // Future reset must go through a
-                                          // confirmation screen first.
+// Fresh game for `players` people (clamped to 2..6): everyone at 40, no
+// commander damage. The UI only calls this from the Commander menu, after a
+// confirmation whenever the running game has any progress in it.
+void commanderNewGame(CommanderGame& g, uint8_t players = COMMANDER_DEFAULT_PLAYERS);
+// True while nothing has happened yet (all at 40, no commander damage):
+// starting a new game would lose nothing, so no confirmation is needed.
+bool commanderIsFresh(const CommanderGame& g);
 bool commanderAdjustLife(CommanderGame& g, uint8_t player, int delta);  // true if changed
 void commanderSelect(CommanderGame& g, uint8_t player);
-void commanderSelectNext(CommanderGame& g);  // P1 -> P2 -> P3 -> P4 -> P1
+void commanderSelectNext(CommanderGame& g);  // P1 -> P2 -> ... -> Pn -> P1
 
 // Commander damage `victim` took from `source`'s commander. Also moves life
 // by the opposite amount when CMD_DAMAGE_AFFECTS_LIFE. True if anything changed.
 bool commanderAdjustCmdDamage(CommanderGame& g, uint8_t victim, uint8_t source, int delta);
 
-// Opponents of `player` in seat order: index 0..2 -> player number 0..3.
+// Opponents of `player` in seat order: index 0..players-2 -> player number.
 uint8_t commanderOpponent(uint8_t player, uint8_t index);
 
 // OUT state. `source` receives the opponent for OutReason::CommanderDamage.

@@ -26,5 +26,6 @@ struct ScreenModule {
 
 extern const ScreenModule HomeScreen;       // ScreenHome.cpp
 extern const ScreenModule CommanderScreen;  // ScreenCommander.cpp
+extern const ScreenModule CommanderSetupScreen;  // ScreenCommanderSetup.cpp (players / new game)
 extern const ScreenModule DiceScreen;       // ScreenPlaceholder.cpp  (FUTURE: ScreenDice.cpp)
 extern const ScreenModule RiftboundScreen;  // ScreenPlaceholder.cpp  (FUTURE: ScreenRiftbound.cpp)

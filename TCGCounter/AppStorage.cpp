@@ -6,11 +6,14 @@
 
 /* ---- NVS layout ---------------------------------------------------------
  *  namespace "tcg"       ver  (u8)  schema version
- *                        p1..p4 (i16) Commander life totals
- *                        sel  (u8)  selected player 0..3
+ *                        np   (u8)  Commander players 2..6 (v0.4+; missing -> 4)
+ *                        p1..p6 (i16) Commander life totals (p5, p6 from v0.4)
+ *                        sel  (u8)  selected player 0..5
  *                        scr  (u8)  last active Screen
- *                        cd   (16 bytes) commander damage [victim][source] (v0.2+;
- *                             missing on older saves -> all zero)
+ *                        cd   commander damage [victim][source]:
+ *                             36 bytes (6x6) from v0.4,
+ *                             16 bytes (4x4) in v0.2-v0.3 -> converted on load,
+ *                             missing (v0.1) -> all zero
  *  namespace "tcgtouch"  calv (u8)  calibration format version
  *                        cal  (16 bytes) LovyanGFX calibration (8 x u16)
  *
@@ -22,7 +25,8 @@ static const char*   NS_GAME        = "tcg";
 static const char*   NS_TOUCH       = "tcgtouch";
 static const uint8_t SCHEMA_VERSION = 1;
 static const uint8_t CAL_VERSION    = 1;
-static const char* const LIFE_KEYS[COMMANDER_PLAYERS] = {"p1", "p2", "p3", "p4"};
+static const char* const LIFE_KEYS[COMMANDER_MAX_PLAYERS] = {"p1", "p2", "p3", "p4", "p5", "p6"};
+static const uint8_t OLD_CD_SIDE = 4;  // v0.2-v0.3 saved a 4x4 commander damage table
 
 static AppState s_saved;              // what flash currently holds
 static bool     s_flashHasData = false;
@@ -36,12 +40,24 @@ void loadState() {
   bool restored = false;
   if (p.begin(NS_GAME, false)) {
     if (p.getUChar("ver", 0) == SCHEMA_VERSION) {
-      for (uint8_t i = 0; i < COMMANDER_PLAYERS; ++i)
-        g_state.commander.life[i] = p.getShort(LIFE_KEYS[i], COMMANDER_START_LIFE);
-      g_state.commander.selected = p.getUChar("sel", 0);
+      CommanderGame& c = g_state.commander;
+      c.players = p.isKey("np") ? p.getUChar("np", COMMANDER_DEFAULT_PLAYERS)
+                                : COMMANDER_DEFAULT_PLAYERS;  // saved before v0.4: 4 players
+      for (uint8_t i = 0; i < COMMANDER_MAX_PLAYERS; ++i)
+        if (p.isKey(LIFE_KEYS[i])) c.life[i] = p.getShort(LIFE_KEYS[i], COMMANDER_START_LIFE);
+      c.selected = p.getUChar("sel", 0);
       g_state.screen = (Screen)p.getUChar("scr", SCREEN_HOME);
-      if (p.isKey("cd") && p.getBytesLength("cd") == sizeof(g_state.commander.cmdDamage))
-        p.getBytes("cd", g_state.commander.cmdDamage, sizeof(g_state.commander.cmdDamage));
+      if (p.isKey("cd")) {
+        const size_t len = p.getBytesLength("cd");
+        if (len == sizeof(c.cmdDamage)) {
+          p.getBytes("cd", c.cmdDamage, sizeof(c.cmdDamage));
+        } else if (len == (size_t)OLD_CD_SIDE * OLD_CD_SIDE) {  // v0.2-v0.3 format
+          uint8_t old[OLD_CD_SIDE][OLD_CD_SIDE];
+          p.getBytes("cd", old, sizeof(old));
+          for (uint8_t i = 0; i < OLD_CD_SIDE; ++i)
+            for (uint8_t j = 0; j < OLD_CD_SIDE; ++j) c.cmdDamage[i][j] = old[i][j];
+        }
+      }
       restored = true;
     }
     p.end();
@@ -54,11 +70,11 @@ void loadState() {
   s_flashHasData = restored;
   s_lastChangeMs = millis();
 
-  LOGF("[storage] %s: life %d/%d/%d/%d, selected P%u, screen %u\n",
-       restored ? "restored" : "no saved game, defaults",
-       g_state.commander.life[0], g_state.commander.life[1],
-       g_state.commander.life[2], g_state.commander.life[3],
-       g_state.commander.selected + 1, (unsigned)g_state.screen);
+  const CommanderGame& c = g_state.commander;
+  LOGF("[storage] %s: %u players, life %d/%d/%d/%d/%d/%d, selected P%u, screen %u\n",
+       restored ? "restored" : "no saved game, defaults", c.players,
+       c.life[0], c.life[1], c.life[2], c.life[3], c.life[4], c.life[5],
+       c.selected + 1, (unsigned)g_state.screen);
 }
 
 static void writeState(const AppState& s) {
@@ -70,7 +86,11 @@ static void writeState(const AppState& s) {
   const bool all = !s_flashHasData;
   uint8_t writes = 0;
   if (all) { p.putUChar("ver", SCHEMA_VERSION); ++writes; }
-  for (uint8_t i = 0; i < COMMANDER_PLAYERS; ++i) {
+  if (all || s.commander.players != s_saved.commander.players) {
+    p.putUChar("np", s.commander.players);
+    ++writes;
+  }
+  for (uint8_t i = 0; i < COMMANDER_MAX_PLAYERS; ++i) {
     if (all || s.commander.life[i] != s_saved.commander.life[i]) {
       p.putShort(LIFE_KEYS[i], s.commander.life[i]);
       ++writes;

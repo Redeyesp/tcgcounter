@@ -1,20 +1,20 @@
 /* ============================================================================
- *  ScreenCommander — 4-player life counter (2x2) with Lotus-style
- *  commander damage.
+ *  ScreenCommander — life counter for 2..6 players with Lotus-style
+ *  commander damage. Where the cards sit: CommanderLayout.h.
  *
- *  NORMAL MODE                         COMMANDER DAMAGE MODE (P1 swiped)
+ *  NORMAL MODE (4 players)             COMMANDER DAMAGE MODE (P1 swiped)
  *  ┌──────────┬──────────┐             ┌──────────┬──────────┐
  *  │ PLAYER 1 │ PLAYER 2 │             │ PLAYER 1 │ P2 -> P1 │  P1's card: P1's life
  *  │    40    │    40    │             │    33    │   7 /21  │  others: damage THEY
  *  │  [-] [+] │  [-] [+] │             │CMD DAMAGE│  [-] [+] │  dealt to P1 (indigo
- *  ├────────(⌂)──────────┤             ├────────(✕)──────────┤  cards = this mode)
+ *  ├────────(≡)──────────┤             ├────────(✕)──────────┤  cards = this mode)
  *  │ PLAYER 3 │ PLAYER 4 │             │ P3 -> P1 │ P4 -> P1 │
  *  └──────────┴──────────┘             └──────────┴──────────┘
  *
  *  Normal mode
  *    Touch:   tap a card = select · tap/hold −/+ = life (hold repeats)
- *             swipe left/right on a card's number = commander damage mode for that player
- *             tap centre ⌂ = Home
+ *             swipe sideways on a card's number = commander damage mode for that player
+ *             tap centre ≡ = Commander menu (player count, new game, home)
  *    Encoder: turn = selected player's life · press = next player
  *             long-press = commander damage mode for the selected player
  *
@@ -28,9 +28,9 @@
  *             long-press = back to normal
  *    Closes by itself after CMD_MODE_TIMEOUT_MS without use.
  *
- *  Seating: with COMMANDER_FLIP_TOP_ROW the top cards (P1, P2) are drawn
- *  upside down so the two players across the table read them the right way
- *  round; their touch points are turned the same way.
+ *  Every card is drawn the right way round for the player at its table edge
+ *  (COMMANDER_FACE_SEATS); its touch points are turned the same way, and
+ *  "sideways" swipes are sideways for that player.
  *
  *  Commander damage also costs life (CMD_DAMAGE_AFFECTS_LIFE, like Lotus).
  *  OUT (life <= 0, or 21+ from one commander): red card, "YOU ARE OUT";
@@ -40,62 +40,19 @@
 #include "Screens.h"
 #include "App.h"
 #include "GameState.h"
+#include "CommanderLayout.h"
 #include "Theme.h"
 #include "Ui.h"
 #include "Config.h"
 #include <stdio.h>
-#include <algorithm>
+#include <stdlib.h>
 
 namespace {
 
-// ---------------------------------------------------------------- geometry
-constexpr int QW = 159, QH = 119, GAP = 2;   // 159+2+159 = 320, 119+2+119 = 240
-constexpr int FRAME_R = 10;                  // card corner radius
-constexpr int FRAME_THICK = 4;               // highlight border thickness
+constexpr int FRAME_R = 10;     // card corner radius
+constexpr int FRAME_THICK = 4;  // highlight border thickness
 
-// Positions inside a card (local coordinates)
-constexpr Rect PILL       = {27, 8, 105, 20};  // label
-constexpr Rect CENTER     = {6, 29, 147, 52};  // number / OUT message / caption
-constexpr Rect BTN_MINUS  = {22, 82, 52, 30};
-constexpr Rect BTN_PLUS   = {85, 82, 52, 30};
-constexpr int  BTN_ZONE_Y = 76;  // touches at/below this line hit − (left half) or + (right half)
-constexpr int  CAPTION_Y  = 45;  // small caption, rows 37..49 inside CENTER (below the digits)
-
-// Centre button (screen coordinates): HOME in normal mode, CLOSE in damage mode
-constexpr int HUB_X = 160, HUB_Y = 120, HUB_R = 19, HUB_HIT_R = 22;
-
-// Top-row cards (P1, P2) face the far side of the table: drawn rotated 180°.
-bool isFlipped(uint8_t i) { return COMMANDER_FLIP_TOP_ROW && i < 2; }
-
-Rect quadRect(uint8_t i) {
-  return Rect{(int16_t)((i & 1) * (QW + GAP)), (int16_t)((i >> 1) * (QH + GAP)), QW, QH};
-}
-
-// ---------------------------------------------------------------- hit test
-enum class Zone : uint8_t { None, Area, Minus, Plus, Hub };
-struct Hit {
-  Zone zone;
-  uint8_t player;
-  bool operator==(const Hit& o) const { return zone == o.zone && player == o.player; }
-  bool operator!=(const Hit& o) const { return !(*this == o); }
-};
-constexpr Hit NO_HIT = {Zone::None, 0};
-
-Hit hitTest(int x, int y) {
-  const int dx = x - HUB_X, dy = y - HUB_Y;
-  if (dx * dx + dy * dy <= HUB_HIT_R * HUB_HIT_R) return {Zone::Hub, 0};
-  // Split the screen in halves so the 2 px gaps are not dead zones.
-  const uint8_t col = x >= 160 ? 1 : 0, row = y >= 120 ? 1 : 0;
-  const uint8_t player = (uint8_t)(row * 2 + col);
-  const Rect q = quadRect(player);
-  int lx = x - q.x, ly = y - q.y;
-  if (isFlipped(player)) {  // card is drawn upside down: turn the touch point too
-    lx = QW - 1 - lx;
-    ly = QH - 1 - ly;
-  }
-  if (ly >= BTN_ZONE_Y) return {lx < QW / 2 ? Zone::Minus : Zone::Plus, player};
-  return {Zone::Area, player};
-}
+const TableLayout& table() { return tableLayout(g_state.commander.players); }
 
 // ---------------------------------------------------------------- UI-only state
 constexpr int8_t NONE = -1;
@@ -118,8 +75,9 @@ void enterCmdMode(uint8_t victim) {
 void exitCmdMode() { s_victim = NONE; }
 
 void nextFocus() {  // cycle the encoder focus through the victim's opponents
-  for (uint8_t k = 1; k <= COMMANDER_PLAYERS; ++k) {
-    const uint8_t p = (uint8_t)((s_focus + k) % COMMANDER_PLAYERS);
+  const uint8_t n = g_state.commander.players;
+  for (uint8_t k = 1; k <= n; ++k) {
+    const uint8_t p = (uint8_t)((s_focus + k) % n);
     if (p != (uint8_t)s_victim) { s_focus = p; return; }
   }
 }
@@ -137,15 +95,16 @@ void adjustCard(uint8_t p, int delta) {
 }
 
 uint8_t biggestCmdDamage(uint8_t p) {
+  const CommanderGame& g = g_state.commander;
   uint8_t m = 0;
-  for (uint8_t j = 0; j < COMMANDER_PLAYERS; ++j)
-    if (j != p && g_state.commander.cmdDamage[p][j] > m) m = g_state.commander.cmdDamage[p][j];
+  for (uint8_t j = 0; j < g.players; ++j)
+    if (j != p && g.cmdDamage[p][j] > m) m = g.cmdDamage[p][j];
   return m;
 }
 
 // ---------------------------------------------------------------- card model
 // Everything that decides how one card looks. Rendering compares this with
-// what was last drawn and repaints only the parts that differ.
+// what was last drawn and repaints only the cards that differ.
 enum class Role : uint8_t { Life, Victim, Source };
 
 struct CardView {
@@ -160,6 +119,7 @@ struct CardView {
     return role == o.role && victim == o.victim && value == o.value && out == o.out &&
            cmdMax == o.cmdMax && highlight == o.highlight && pressed == o.pressed;
   }
+  bool operator!=(const CardView& o) const { return !(*this == o); }
 };
 
 CardView viewOf(uint8_t i) {
@@ -182,13 +142,13 @@ CardView viewOf(uint8_t i) {
     v.value = g.cmdDamage[v.victim][i];
     v.highlight = (s_focus == i);
   }
-  v.pressed = (s_press.player == i && (s_press.zone == Zone::Minus || s_press.zone == Zone::Plus))
-                  ? s_press.zone : Zone::None;
+  const bool onButton = s_press.zone == Zone::Minus || s_press.zone == Zone::Plus;
+  v.pressed = (onButton && s_press.index == i) ? s_press.zone : Zone::None;
   return v;
 }
 
-CardView s_drawn[COMMANDER_PLAYERS];
-bool     s_drawnHubPressed = false;
+CardView s_drawn[COMMANDER_MAX_PLAYERS];
+int8_t   s_drawnHubPressed = NONE;  // centre button drawn pressed (index), NONE = none
 bool     s_drawnCmdMode = false;
 
 uint16_t cardBg(const CardView& v) {
@@ -196,53 +156,106 @@ uint16_t cardBg(const CardView& v) {
   return v.out != OutReason::None ? theme::OUT_PANEL : theme::PANEL;
 }
 
-// ---------------------------------------------------------------- drawing
-// A whole card is drawn into an off-screen sprite in card coordinates
-// (0,0 = card's top-left as its player sees it), then pushed in one go:
-// no flicker, and top-row cards are turned 180° by reversing the pixels.
-lgfx::LGFX_Sprite* cardSprite() {
-  static lgfx::LGFX_Sprite spr(&gfx());
-  static bool tried = false;
-  if (!tried) {
-    tried = true;
-    spr.setColorDepth(16);
-    spr.createSprite(QW, QH);  // ~38 KB
-    if (spr.getBuffer() && spr.bufferLength() != (uint32_t)QW * QH * 2) spr.deleteSprite();
+// ---------------------------------------------------------------- drawing a card
+// Card parts draw on canvas `c` with the card's top-left (as its player sees
+// it) at (ox, oy), using the local positions in CardGeom.
+
+// Player label: the longest form that fits the pill.
+//   "PLAYER 5" -> "P5"     commander damage: "P5 -> P1" -> "P5>P1" -> "P5"
+// `*shortSource` = a commander damage label lost its victim part.
+void labelText(lgfx::LovyanGFX& c, const CardGeom& g, uint8_t i, const CardView& v,
+               char* buf, size_t n, bool* shortSource) {
+  const unsigned p = i + 1, victim = v.victim + 1;
+  const int room = g.pill.w - 12;
+  c.setFont(theme::fontLabel());
+  bool victimShown = false;
+  if (v.role == Role::Source) {
+    snprintf(buf, n, "P%u -> P%u", p, victim);
+    if (c.textWidth(buf) > room) snprintf(buf, n, "P%u>P%u", p, victim);
+    victimShown = c.textWidth(buf) <= room;
+  } else {
+    snprintf(buf, n, "PLAYER %u", p);
   }
-  return spr.getBuffer() ? &spr : nullptr;
+  if (c.textWidth(buf) > room) snprintf(buf, n, "P%u", p);
+  if (shortSource) *shortSource = v.role == Role::Source && !victimShown;
 }
 
-void drawBigNumber(lgfx::LovyanGFX& c, int cx, int cy, int value, uint16_t color) {
-  char buf[8];
-  snprintf(buf, sizeof(buf), "%d", value);
-  c.setFont(theme::fontLife());
-  c.setTextDatum(lgfx::textdatum_t::middle_center);
+// Caption text: the long form if it fits its slot, else the short one.
+const char* fitCaption(lgfx::LovyanGFX& c, const CardGeom& g, const lgfx::IFont* font,
+                       const char* longText, const char* shortText) {
+  // compact: centred inside the card; wide: right-aligned, must not reach the label pill
+  const int room = g.wide ? g.capX - (g.pill.x + g.pill.w) - 10 : g.w - 16;
+  c.setFont(font);
+  return c.textWidth(longText) <= room ? longText : shortText;
+}
+
+const theme::NumberFont& pickNumberFont(lgfx::LovyanGFX& c, const char* text, int maxW, int maxH) {
+  uint8_t n = 0;
+  const theme::NumberFont* f = theme::numberFonts(n);
+  for (uint8_t k = 0; k + 1 < n; ++k) {
+    c.setFont(f[k].font);
+    if (f[k].height <= maxH && c.textWidth(text) + (theme::LIFE_FAUX_BOLD ? 1 : 0) <= maxW) return f[k];
+  }
+  return f[n - 1];  // smallest
+}
+
+int numberWidth(lgfx::LovyanGFX& c, const theme::NumberFont& f, const char* text) {
+  c.setFont(f.font);
+  return c.textWidth(text) + (theme::LIFE_FAUX_BOLD ? 1 : 0);
+}
+
+// Digits vertically centred on cy; x is the left edge (top_left) or the centre (top_center).
+void drawDigits(lgfx::LovyanGFX& c, const theme::NumberFont& f, const char* text, int x, int cy,
+                lgfx::textdatum_t datum, uint16_t color) {
+  const int y = cy - f.top - f.height / 2;
+  c.setFont(f.font);
+  c.setTextDatum(datum);
   c.setTextColor(color);
-  c.drawString(buf, cx, cy);
-  if (theme::LIFE_FAUX_BOLD) c.drawString(buf, cx + 1, cy);
+  c.drawString(text, x, y);
+  if (theme::LIFE_FAUX_BOLD) c.drawString(text, x + 1, y);
 }
 
-void drawCaption(lgfx::LovyanGFX& c, int cx, int y, const char* text, uint16_t color) {
-  c.setFont(theme::fontSmall());
-  c.setTextDatum(lgfx::textdatum_t::middle_center);
+void drawCaption(lgfx::LovyanGFX& c, int ox, int oy, const CardGeom& g, const char* text,
+                 const lgfx::IFont* font, uint16_t color) {
+  c.setFont(font);
+  c.setTextDatum(g.wide ? lgfx::textdatum_t::middle_right : lgfx::textdatum_t::middle_center);
   c.setTextColor(color);
-  c.drawString(text, cx, y);
+  c.drawString(text, ox + g.capX, oy + g.capY);
 }
 
-// All card parts take the canvas and the card's origin (ox, oy) on it.
-void drawCenter(lgfx::LovyanGFX& c, int ox, int oy, const CardView& v) {
-  ox += CENTER.x;
-  oy += CENTER.y;
-  const int cx = ox + CENTER.w / 2;
+void drawCenter(lgfx::LovyanGFX& c, int ox, int oy, const CardGeom& g, uint8_t i, const CardView& v) {
+  const int cx = ox + g.numCx, cy = oy + g.numCy;
+  char num[8];
+  snprintf(num, sizeof(num), "%d", v.value);
 
   if (v.role == Role::Source) {
-    // ---- commander damage this card's player dealt to the victim
+    // ---- commander damage this card's player dealt to the victim:  "7 /21"
     const uint16_t col = v.value >= CMD_DAMAGE_LETHAL ? theme::DANGER : theme::TEXT;
-    drawBigNumber(c, cx - 8, oy + 22, v.value, col);
-    c.setFont(theme::fontSmall());
-    c.setTextDatum(lgfx::textdatum_t::middle_left);
+    const lgfx::IFont* suffixFont = theme::fontSmall();
+    c.setFont(suffixFont);
+    int suffixW = c.textWidth("/21");
+    const theme::NumberFont& f = pickNumberFont(c, num, g.numMaxW - suffixW - 4, g.numMaxH);
+    const int numW = numberWidth(c, f, num);
+    if (f.height >= 60) {  // big digits get a bigger "/21" if it fits
+      c.setFont(theme::fontButton());
+      const int bigW = c.textWidth("/21");
+      if (numW + 4 + bigW <= g.numMaxW) { suffixFont = theme::fontButton(); suffixW = bigW; }
+    }
+    const int left = cx - (numW + 4 + suffixW) / 2;
+    drawDigits(c, f, num, left, cy, lgfx::textdatum_t::top_left, col);
+    c.setFont(suffixFont);
+    c.setTextDatum(lgfx::textdatum_t::baseline_left);
     c.setTextColor(theme::TEXT_DIM);
-    c.drawString("/21", cx + 30, oy + 30);
+    c.drawString("/21", left + numW + 4, cy + f.height / 2);  // sits on the digits' baseline
+
+    char label[16];
+    bool shortSource = false;
+    labelText(c, g, i, v, label, sizeof(label), &shortSource);
+    if (shortSource) {  // narrow card: the label only says "P5", so name the victim here
+      char cap[12];
+      snprintf(cap, sizeof(cap), "TO P%u", (unsigned)(v.victim + 1));
+      drawCaption(c, ox, oy, g, cap, theme::fontSmall(), theme::TEXT_DIM);
+    }
     return;
   }
 
@@ -250,43 +263,48 @@ void drawCenter(lgfx::LovyanGFX& c, int ox, int oy, const CardView& v) {
     // ---- YOU ARE OUT
     c.setTextDatum(lgfx::textdatum_t::middle_center);
     c.setTextColor(theme::TEXT);
-    c.setFont(theme::fontLabel());
-    c.drawString("YOU ARE", cx, oy + 9);
-    c.setFont(theme::fontTitle());
-    c.drawString("OUT", cx, oy + 32);
-    c.drawString("OUT", cx + 1, oy + 32);
-  } else {
-    drawBigNumber(c, cx, oy + 22, v.value, theme::TEXT);  // life: digits rows 1..34
+    if (!g.wide) {
+      c.setFont(theme::fontLabel());
+      c.drawString("YOU ARE", cx, cy - 10);
+      c.setFont(theme::fontTitle());
+      c.drawString("OUT", cx, cy + 16);
+      c.drawString("OUT", cx + 1, cy + 16);
+    } else {  // wide card: "YOU ARE" in the caption corner, big "OUT" in the middle
+      c.setFont(g.numMaxH >= 60 ? theme::fontHuge() : theme::fontTitle());
+      c.drawString("OUT", cx, cy);
+      c.drawString("OUT", cx + 1, cy);
+      drawCaption(c, ox, oy, g, "YOU ARE", theme::fontLabel(), theme::TEXT);
+    }
+    return;
   }
 
+  // ---- life
+  const theme::NumberFont& f = pickNumberFont(c, num, g.numMaxW, g.numMaxH);
+  drawDigits(c, f, num, cx, cy, lgfx::textdatum_t::top_center, theme::TEXT);
   if (v.role == Role::Victim) {
-    if (v.out == OutReason::None) drawCaption(c, cx, oy + CAPTION_Y, "CMD DAMAGE", theme::TEXT_DIM);
-  } else if (v.cmdMax > 0 && v.out == OutReason::None) {
+    drawCaption(c, ox, oy, g, fitCaption(c, g, theme::fontSmall(), "CMD DAMAGE", "CMD DMG"),
+                theme::fontSmall(), theme::TEXT_DIM);
+  } else if (v.cmdMax > 0) {
     char buf[12];
     snprintf(buf, sizeof(buf), "CMD %u", (unsigned)v.cmdMax);
-    drawCaption(c, cx, oy + CAPTION_Y, buf, theme::TEXT_DIM);
+    drawCaption(c, ox, oy, g, buf, theme::fontSmall(), theme::TEXT_DIM);
   }
 }
 
-void drawFrame(lgfx::LovyanGFX& c, int ox, int oy, uint8_t i, const CardView& v) {
-  if (v.highlight) {
-    uiRoundFrame(c, ox, oy, QW, QH, FRAME_R, FRAME_THICK, theme::PLAYER[i]);
-  } else {
-    uiRoundFrame(c, ox, oy, QW, QH, FRAME_R, 1, theme::PANEL_EDGE);
-  }
+void drawFrame(lgfx::LovyanGFX& c, int ox, int oy, const CardGeom& g, uint8_t i, const CardView& v) {
+  if (v.highlight) uiRoundFrame(c, ox, oy, g.w, g.h, FRAME_R, FRAME_THICK, theme::PLAYER[i]);
+  else             uiRoundFrame(c, ox, oy, g.w, g.h, FRAME_R, 1, theme::PANEL_EDGE);
 }
 
-void drawLabel(lgfx::LovyanGFX& c, int ox, int oy, uint8_t i, const CardView& v) {
-  const Rect p = {(int16_t)(ox + PILL.x), (int16_t)(oy + PILL.y), PILL.w, PILL.h};
+void drawLabel(lgfx::LovyanGFX& c, int ox, int oy, const CardGeom& g, uint8_t i, const CardView& v) {
+  const Rect p = {(int16_t)(ox + g.pill.x), (int16_t)(oy + g.pill.y), g.pill.w, g.pill.h};
   char buf[16];
+  labelText(c, g, i, v, buf, sizeof(buf), nullptr);
   uint16_t textCol;
-  if (v.role == Role::Source) {
-    // "P2 -> P1": damage P2's commander dealt to P1
-    snprintf(buf, sizeof(buf), "P%u -> P%u", (unsigned)(i + 1), (unsigned)(v.victim + 1));
+  if (v.role == Role::Source) {  // "P2 -> P1": damage P2's commander dealt to P1
     c.fillRoundRect(p.x, p.y, p.w, p.h, p.h / 2, theme::BUTTON);
     textCol = theme::PLAYER[i];
   } else {
-    snprintf(buf, sizeof(buf), "PLAYER %u", (unsigned)(i + 1));
     if (v.highlight) c.fillRoundRect(p.x, p.y, p.w, p.h, p.h / 2, theme::PLAYER[i]);
     textCol = v.highlight ? theme::TEXT_ON_ACCENT : theme::PLAYER[i];
   }
@@ -296,43 +314,84 @@ void drawLabel(lgfx::LovyanGFX& c, int ox, int oy, uint8_t i, const CardView& v)
   c.drawString(buf, p.cx(), p.cy() + 1);
 }
 
-void drawButton(lgfx::LovyanGFX& c, int ox, int oy, uint8_t i, Zone which, bool pressed) {
-  const Rect& r = (which == Zone::Minus) ? BTN_MINUS : BTN_PLUS;
+void drawButton(lgfx::LovyanGFX& c, int ox, int oy, const CardGeom& g, uint8_t i, Zone which, bool pressed) {
+  const Rect& r = (which == Zone::Minus) ? g.minus : g.plus;
   const Rect b = {(int16_t)(ox + r.x), (int16_t)(oy + r.y), r.w, r.h};
   const uint16_t fill = pressed ? theme::PLAYER[i] : theme::BUTTON;
   const uint16_t sym  = pressed ? theme::TEXT_ON_ACCENT : theme::TEXT;
+  const int shortSide = b.w < b.h ? b.w : b.h;
+  const int len = shortSide >= 52 ? 26 : 18;  // bigger symbol on the big 2-player buttons
+  const int thick = shortSide >= 52 ? 5 : 4;
   c.fillRoundRect(b.x, b.y, b.w, b.h, 8, fill);
-  if (which == Zone::Minus) uiMinus(c, b.cx(), b.cy(), 18, 4, sym);
-  else                      uiPlus(c, b.cx(), b.cy(), 18, 4, sym);
+  if (which == Zone::Minus) uiMinus(c, b.cx(), b.cy(), len, thick, sym);
+  else                      uiPlus(c, b.cx(), b.cy(), len, thick, sym);
 }
 
-void drawCardContent(lgfx::LovyanGFX& c, int ox, int oy, uint8_t i, const CardView& v) {
-  c.fillRect(ox, oy, QW, QH, theme::BG);
-  c.fillRoundRect(ox, oy, QW, QH, FRAME_R, cardBg(v));
-  drawFrame(c, ox, oy, i, v);
-  drawLabel(c, ox, oy, i, v);
-  drawCenter(c, ox, oy, v);
-  drawButton(c, ox, oy, i, Zone::Minus, v.pressed == Zone::Minus);
-  drawButton(c, ox, oy, i, Zone::Plus,  v.pressed == Zone::Plus);
+void drawCardContent(lgfx::LovyanGFX& c, int ox, int oy, const CardGeom& g, uint8_t i, const CardView& v) {
+  c.fillRect(ox, oy, g.w, g.h, theme::BG);
+  c.fillRoundRect(ox, oy, g.w, g.h, FRAME_R, cardBg(v));
+  drawFrame(c, ox, oy, g, i, v);
+  drawLabel(c, ox, oy, g, i, v);
+  drawCenter(c, ox, oy, g, i, v);
+  drawButton(c, ox, oy, g, i, Zone::Minus, v.pressed == Zone::Minus);
+  drawButton(c, ox, oy, g, i, Zone::Plus,  v.pressed == Zone::Plus);
+}
+
+// ---------------------------------------------------------------- off-screen buffer
+// Cards are drawn off-screen (no flicker), turned to face their player by
+// the sprite's rotation, then copied to the LCD. One buffer is reused for
+// every card; a card bigger than the buffer (the 2-player cards) is drawn
+// in horizontal bands.
+constexpr uint32_t CARD_BUF_PIXELS = 20000;  // 40 KB: a whole 159x119 card
+
+struct CardBuffer { uint16_t* px; uint32_t pixels; };
+
+const CardBuffer& cardBuffer() {
+  static CardBuffer b = [] {
+    CardBuffer r = {nullptr, 0};
+    // Low on memory? Smaller buffers just mean more bands.
+    for (uint32_t n = CARD_BUF_PIXELS; n >= 320 && !r.px; n /= 2) {
+      r.px = static_cast<uint16_t*>(malloc(n * sizeof(uint16_t)));
+      if (r.px) r.pixels = n;
+    }
+    return r;
+  }();
+  return b;
 }
 
 void drawCard(uint8_t i, const CardView& v) {
-  const Rect q = quadRect(i);
-  if (auto* s = cardSprite()) {
-    // The same buffer is reused for every card. pushSprite() would send it by
-    // DMA in the background, and redrawing the buffer for the next card while
-    // that transfer is still running mixes cards up on the screen. So: make
-    // sure nothing is still in flight, and push with a plain blocking transfer.
-    gfx().waitDMA();
-    drawCardContent(*s, 0, 0, i, v);
-    if (isFlipped(i)) {  // exact 180° turn: reverse the pixel order
-      auto* px = static_cast<uint16_t*>(s->getBuffer());
-      std::reverse(px, px + QW * QH);
-    }
-    gfx().pushImage(q.x, q.y, QW, QH, static_cast<const lgfx::swap565_t*>(s->getBuffer()));  // no DMA
-  } else {
-    drawCardContent(gfx(), q.x, q.y, i, v);  // no memory for the sprite: draw unrotated
+  const Seat& s = table().seats[i];
+  const CardGeom g = cardGeom(s);
+  const CardBuffer& buf = cardBuffer();
+  if (!buf.px) return;  // no memory at all: nothing sensible to draw
+
+  static lgfx::LGFX_Sprite spr(&gfx());
+  const int w = s.r.w, h = s.r.h;
+  const int maxRows = (int)(buf.pixels / (uint32_t)w);
+  const int bands = (h + maxRows - 1) / maxRows;
+  const int bandH = (h + bands - 1) / bands;
+
+  // pushSprite() would send the buffer by DMA in the background, and drawing
+  // the next band/card into it while that runs mixes cards up on the screen.
+  // So: nothing may still be in flight, and every push is a blocking transfer.
+  gfx().waitDMA();
+  for (int b0 = 0; b0 < h; b0 += bandH) {
+    const int bh = (h - b0 < bandH) ? h - b0 : bandH;
+    spr.setBuffer(buf.px, w, bh, 16);
+    spr.setRotation((uint8_t)s.side);  // turn the drawing to face the seat
+    // Card position (as its player sees it) of this band's first pixel:
+    int ax, ay, bx, by;
+    seatToLocal(s, s.r.x, s.r.y + b0, ax, ay);
+    seatToLocal(s, s.r.x + w - 1, s.r.y + b0 + bh - 1, bx, by);
+    drawCardContent(spr, -(ax < bx ? ax : bx), -(ay < by ? ay : by), g, i, v);
+    gfx().pushImage(s.r.x, s.r.y + b0, w, bh, static_cast<const lgfx::swap565_t*>((void*)buf.px));
   }
+}
+
+// ---------------------------------------------------------------- centre button(s)
+void drawMenuIcon(int cx, int cy, uint16_t color) {
+  auto& g = gfx();
+  for (int k = -1; k <= 1; ++k) g.fillRect(cx - 8, cy - 1 + 6 * k, 17, 3, color);
 }
 
 void drawCloseIcon(int cx, int cy, uint16_t color) {
@@ -343,15 +402,15 @@ void drawCloseIcon(int cx, int cy, uint16_t color) {
   }
 }
 
-void drawHub(bool pressed) {
+void drawHub(const HubPos& h, bool pressed) {
   auto& g = gfx();
   const uint16_t fill = pressed ? theme::ACCENT : theme::BUTTON;
   const uint16_t icon = pressed ? theme::TEXT_ON_ACCENT : theme::TEXT;
-  g.fillCircle(HUB_X, HUB_Y, HUB_R + 3, theme::BG);  // dark moat separates it from the cards
-  g.fillCircle(HUB_X, HUB_Y, HUB_R, fill);
-  g.drawCircle(HUB_X, HUB_Y, HUB_R, theme::PANEL_EDGE);
-  if (cmdMode()) drawCloseIcon(HUB_X, HUB_Y, icon);
-  else           uiHomeIcon(g, HUB_X, HUB_Y + 1, icon, fill);
+  g.fillCircle(h.x, h.y, HUB_R + HUB_MOAT, theme::BG);  // dark moat separates it from the cards
+  g.fillCircle(h.x, h.y, HUB_R, fill);
+  g.drawCircle(h.x, h.y, HUB_R, theme::PANEL_EDGE);
+  if (cmdMode()) drawCloseIcon(h.x, h.y, icon);
+  else           drawMenuIcon(h.x, h.y, icon);
 }
 
 // ---------------------------------------------------------------- module functions
@@ -378,9 +437,9 @@ void handleInput(const InputEvent& e) {
       break;
 
     case InputType::TouchDown: {
-      s_press = hitTest(e.x, e.y);
+      s_press = commanderHitTest(game.players, e.x, e.y);
       const Zone z = s_press.zone;
-      const uint8_t p = s_press.player;
+      const uint8_t p = s_press.index;
       if (z == Zone::Area || z == Zone::Minus || z == Zone::Plus) {
         if (!cmdMode()) commanderSelect(game, p);
         else { if (p != (uint8_t)s_victim) s_focus = p; touchMode(); }
@@ -391,23 +450,26 @@ void handleInput(const InputEvent& e) {
     }
 
     case InputType::TouchRepeat:  // hold-to-repeat on − / +
-      if (s_press.zone == Zone::Minus) adjustCard(s_press.player, -1);
-      if (s_press.zone == Zone::Plus)  adjustCard(s_press.player, +1);
+      if (s_press.zone == Zone::Minus) adjustCard(s_press.index, -1);
+      if (s_press.zone == Zone::Plus)  adjustCard(s_press.index, +1);
       break;
 
-    case InputType::TouchSwipe:  // only swipes that start on a card's number/label area
+    case InputType::TouchSwipe: {  // only swipes that start on a card's number/label area
       if (s_press.zone != Zone::Area) break;
-      if (!cmdMode()) enterCmdMode(s_press.player);
-      else if (s_press.player == (uint8_t)s_victim) exitCmdMode();
-      else enterCmdMode(s_press.player);  // switch to that player's damage
+      const uint8_t p = s_press.index;
+      if (!isSidewaysSwipe(table().seats[p], e.delta)) break;  // sideways for that player only
+      if (!cmdMode()) enterCmdMode(p);
+      else if (p == (uint8_t)s_victim) exitCmdMode();
+      else enterCmdMode(p);  // switch to that player's damage
       break;
+    }
 
     case InputType::TouchUp: {
       const Hit released = s_press;
       s_press = NO_HIT;
       if (released.zone == Zone::Hub && isTap(e, TOUCH_TAP_MAX_MS)) {
-        if (cmdMode()) exitCmdMode();   // centre ✕ closes damage mode
-        else goToScreen(SCREEN_HOME);   // centre ⌂ goes home
+        if (cmdMode()) exitCmdMode();                   // centre ✕ closes damage mode
+        else goToScreen(SCREEN_COMMANDER_SETUP);        // centre ≡ opens the Commander menu
       }
       break;
     }
@@ -422,26 +484,27 @@ void tick(uint32_t now) {
 
 void render(bool full) {
   auto& g = gfx();
-  const bool hubPressed = (s_press.zone == Zone::Hub);
+  const TableLayout& L = table();
+  const int8_t hubPressed = (s_press.zone == Zone::Hub) ? (int8_t)s_press.index : NONE;
   bool hubDirty = full || (hubPressed != s_drawnHubPressed) || (cmdMode() != s_drawnCmdMode);
   bool started = false;
 
   if (full) {
     g.startWrite();
     started = true;
-    g.fillScreen(theme::BG);
+    g.fillScreen(theme::BG);  // also blanks the empty seat of the 3-player table
   }
-  for (uint8_t i = 0; i < COMMANDER_PLAYERS; ++i) {
+  for (uint8_t i = 0; i < L.players; ++i) {
     const CardView v = viewOf(i);
     if (!full && v == s_drawn[i]) continue;
     if (!started) { g.startWrite(); started = true; }
-    drawCard(i, v);  // whole card from its sprite: one push, no flicker
+    drawCard(i, v);  // whole card off-screen, then one copy: no flicker
     s_drawn[i] = v;
-    hubDirty = true;  // the card's corner lies under the centre button
+    hubDirty = true;  // card corners lie under the centre button(s)
   }
   if (hubDirty) {
     if (!started) { g.startWrite(); started = true; }
-    drawHub(hubPressed);
+    for (uint8_t k = 0; k < L.hubCount; ++k) drawHub(L.hubs[k], (int8_t)k == hubPressed);
     s_drawnHubPressed = hubPressed;
     s_drawnCmdMode = cmdMode();
   }

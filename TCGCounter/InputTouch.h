@@ -11,14 +11,16 @@
 
 #include <stdint.h>
 #include "Config.h"
+#include "InputEvents.h"
 
 // Swipe classification, kept pure so it can be unit-tested:
-// -1 = swipe left, +1 = swipe right, 0 = not a horizontal swipe.
-inline int8_t classifySwipe(int dx, int dy) {
+// SWIPE_LEFT / SWIPE_RIGHT / SWIPE_UP / SWIPE_DOWN, or 0 = not a straight swipe
+// (too short, or diagonal).
+inline int16_t classifySwipe(int dx, int dy) {
   const int adx = dx < 0 ? -dx : dx, ady = dy < 0 ? -dy : dy;
-  if (adx < TOUCH_SWIPE_MIN_PX) return 0;
-  if (adx < 2 * ady) return 0;  // mostly vertical / diagonal: ignore
-  return dx < 0 ? -1 : 1;
+  if (adx >= TOUCH_SWIPE_MIN_PX && adx >= 2 * ady) return dx < 0 ? SWIPE_LEFT : SWIPE_RIGHT;
+  if (ady >= TOUCH_SWIPE_MIN_PX && ady >= 2 * adx) return dy < 0 ? SWIPE_UP : SWIPE_DOWN;
+  return 0;
 }
 // True once the finger has moved far enough that this can't be a tap/hold.
 inline bool touchMoved(int dx, int dy) {

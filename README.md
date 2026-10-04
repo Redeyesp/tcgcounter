@@ -1,19 +1,23 @@
-# TCG Counter — Firmware V0.1
+# TCG Counter — Firmware
 
 Target: **ESP32-2432S028R "Cheap Yellow Display" (CYD)** + external **EC11 rotary encoder** with push switch.
 
-V0.1 is *Commander life counter + hardware validation*: a home menu, a fully working
-4-player Commander screen, "Coming Soon" pages for Dice and Riftbound, touch and encoder
-working at the same time, and the game saved to flash so it survives power-off.
+A tabletop life counter: a home menu, a Commander counter for **2 to 6 players** with a
+table layout for each count (every card faces its player), Lotus-style commander damage,
+*YOU ARE OUT*, "Coming Soon" pages for Dice and Riftbound, touch and encoder working at the
+same time, and the game saved to flash so it survives power-off.
 
 **Build status:** compiles with zero warnings in the project code on Arduino-ESP32 core
 **2.0.17** (what PlatformIO uses; tested with LovyanGFX 1.2.0 and 1.2.32) and **3.3.12**
-(what the Arduino IDE installs today; tested with LovyanGFX 1.2.32). The encoder decoder, switch debounce and
-delayed-save logic were unit-tested on a PC; the screens were rendered off-screen to
-check the layout. It has **not** run on a physical CYD yet — that is what V0.1 is for.
+(what the Arduino IDE installs today; tested with LovyanGFX 1.2.32). Game rules, saving,
+the encoder decoder and the touch mapping of every table layout are unit-tested on a PC;
+the screens are rendered off-screen from the real drawing code to check the layout. Runs on
+the USB-C (ST7789) board.
 
 ![UI preview](docs/ui_preview.png)
-*Rendered from the actual screen code at 2× scale (320×240 panel).*
+*Rendered from the actual screen code at 2× scale (320×240 panel). Top: Commander menu,
+2 players, 3 players. Bottom: 4 players in commander damage mode, 5 players (head of table
+on the right, out), 6 players in commander damage mode.*
 
 ---
 
@@ -46,31 +50,59 @@ Using it:
 | Where | Touch | Encoder |
 |---|---|---|
 | Home | Tap an entry to open it | Turn = move yellow focus · Press = open |
-| Commander | Tap a card = select player · Tap/hold **−**/**+** = life (hold repeats) · **Swipe left/right on a card's number** = commander damage mode for that player · Tap centre **⌂** = Home | Turn = selected player's life ±1 per click · Press = next player (P1→P2→P3→P4→P1) · **Long-press** = commander damage mode for the selected player |
+| Commander menu | **CONTINUE** = back to the running game · **2 3 4 5 6** = new game with that many players (asks first) · **HOME** | Turn = move yellow focus · Press = choose |
+| Commander | Tap a card = select player · Tap/hold **−**/**+** = life (hold repeats) · **Swipe sideways on a card's number** = commander damage mode for that player · Tap centre **≡** = Commander menu | Turn = selected player's life ±1 per click · Press = next player (P1→P2→…→P1) · **Long-press** = commander damage mode for the selected player |
 | Commander damage mode | −/+ on an **opponent's** card = damage that opponent dealt to the victim · −/+ on the victim's card = life · Tap centre **✕**, or swipe the victim's card again = close · Swipe another card = switch player | Turn = damage from the focused opponent · Press = next opponent · Long-press = close |
 | Dice / Riftbound | Tap **BACK** | Press = back |
 
-**Commander damage (Lotus-style).** Swipe left or right on a player's card (or long-press the
-encoder for the selected player). The table switches to *commander damage mode* for that player:
-their own card keeps showing their life ("CMD DAMAGE" underneath), and the **other three cards
-turn indigo and become counters**, e.g. `P2 -> P1   7 /21` = damage P2's commander has dealt to P1.
+**Players and seating (2–6).** Home → **COMMANDER** opens the Commander menu. **CONTINUE**
+goes back to the game in progress; a number starts a **new game** for that many players.
+Because that wipes the running game it asks *NEW GAME? … CANCEL / START* first (unless
+nothing has happened yet in the running game, then there is nothing to lose). The centre
+**≡** in the game brings you back to this menu. Lay the device flat in the middle of the
+table — every card is drawn the right way round for the player sitting at that edge:
+
+```
+ 2 players            3 players            4 players
+ ┌──────────────┐     ┌──────┬──────┐     ┌──────┬──────┐
+ │  P1 (far)    │     │  P1  │  P2  │     │  P1  │  P2  │   far side: upside down
+ ├──────≡───────┤     ├──────≡──────┤     ├──────≡──────┤
+ │  P2 (near)   │     │  P3  │      │     │  P3  │  P4  │   one seat left empty
+ └──────────────┘     └──────┴──────┘     └──────┴──────┘
+
+ 5 players (head of table on the right)   6 players
+ ┌────┬────┬──┐                           ┌────┬────┬────┐
+ │ P1 │ P2 │  │                           │ P1 │ P2 │ P3 │
+ ├────≡────┤P5│  P5 is turned sideways    ├────≡────≡────┤   two ≡ buttons,
+ │ P3 │ P4 │  │  for the head of table    │ P4 │ P5 │ P6 │   both the same
+ └────┴────┴──┘                           └────┴────┴────┘
+```
+
+The 2-player and head-of-table cards are wide: **−** on the left, **+** on the right, the
+number in between. Narrow cards shorten their labels (`P5` instead of `PLAYER 5`).
+Numbering is top row, then bottom row, then the head of the table, so 2–4 players keep the
+seats they always had. `COMMANDER_FACE_SEATS 0` in `Config.h` draws every card upright for
+someone at the bottom edge instead.
+
+**Commander damage (Lotus-style).** Swipe sideways on a player's card (sideways *for that
+player* — the head of the table swipes along the long side of their card), or long-press the
+encoder for the selected player. The table switches to *commander damage mode* for that player:
+their own card keeps showing their life ("CMD DAMAGE" underneath), and **everyone else's card
+turns indigo and becomes a counter**, e.g. `P2 -> P1   7 /21` = damage P2's commander has dealt
+to P1 (`P2>P1` on narrow cards).
 Tap −/+ on the opponent who hit you. Commander damage also costs life — +1 damage = −1 life, and
 taking it back returns the life. Close with the centre **✕**, by swiping the same card again, or
 just wait 10 s (`CMD_MODE_TIMEOUT_MS`). Back in the normal view a card shows **CMD n** (most
 damage taken from one commander) once that player has taken any.
-
-**Seating (4 players around a table).** Lay the device flat in the middle. The top two cards
-(P1, P2) are drawn upside down so the two players on the far side read their own life the right
-way round; their − and + work from their side too. Set `COMMANDER_FLIP_TOP_ROW 0` in `Config.h`
-to turn this off.
 
 **YOU ARE OUT.** At **0 life or less**, or **21 commander damage from one player**, the card turns
 red and shows *YOU ARE OUT*. − / + still work, so a mis-tap can be undone and the player
 "revives" as soon as the numbers are legal again. (Rules live in `GameState.h`: `OUT_AT_LIFE`,
 `CMD_DAMAGE_LETHAL`, `CMD_DAMAGE_AFFECTS_LIFE`.)
 
-There is deliberately **no reset** yet — nothing on screen can wipe a game. A future
-reset will go through a confirmation screen (see `commanderNewGame()` in `GameState.h`).
+**New game / reset** only exists in the Commander menu and always goes through the
+*NEW GAME?* question (CANCEL is pre-selected for the encoder). Picking the same number of
+players again is how you reset a game.
 
 ---
 
@@ -123,13 +155,13 @@ Config.h: ENC_SW collides with a GPIO already used by CYD hardware
 ## 4. Folder and code structure
 
 ```
-TCG_Counter_V0.1/
+tcgcounter/
 ├── platformio.ini            PlatformIO project (src_dir = TCGCounter)
 ├── README.md
 ├── .github/workflows/build.yml   CI: build on push/PR, web flasher, releases on tags
 ├── scripts/package_firmware.sh   build output → dist/ (downloads) + site/ (web flasher)
 ├── flasher/index.html        web flasher page (ESP Web Tools), published to GitHub Pages
-├── docs/ui_preview.png       rendered screenshots of the three screens
+├── docs/ui_preview.png       rendered screenshots (menu + table layouts)
 └── TCGCounter/               ← also the Arduino IDE sketch folder
     ├── TCGCounter.ino        setup() + the 5-call loop(). Nothing else.
     │
@@ -150,7 +182,9 @@ TCG_Counter_V0.1/
     ├── App.h/.cpp            screen state machine: routes events, triggers rendering
     ├── Screens.h             ScreenModule interface (onEnter / handleInput / render)
     ├── ScreenHome.cpp        main menu
-    ├── ScreenCommander.cpp   4-player life counter
+    ├── ScreenCommanderSetup.cpp  Commander menu: continue / players 2-6 / new game (+ confirm)
+    ├── CommanderLayout.h/.cpp    table layouts for 2-6 players, card geometry, touch mapping
+    ├── ScreenCommander.cpp   life counter + commander damage, draws the layout's cards
     ├── ScreenPlaceholder.cpp "Coming Soon" for Dice + Riftbound
     └── Ui.h/.cpp             shared drawing helpers + Rect hit-testing
 ```
@@ -178,8 +212,8 @@ Key design rules:
 * **Game state knows nothing about the UI.** `GameState.cpp` has no drawing and no
   hardware calls. Screens change it through functions like `commanderAdjustLife()`.
 * **Rendering is change-driven.** Each screen remembers what it last drew. A life change
-  repaints one 147×50 number (drawn off-screen first, so no flicker); a selection change
-  repaints two frames and two labels. When nothing changed, nothing is sent to the TFT.
+  repaints one card (drawn off-screen first and turned to face its player, so no flicker);
+  a selection change repaints two cards. When nothing changed, nothing is sent to the TFT.
 * **Saving is change-driven too.** `AppStorage` compares `g_state` with what flash holds.
   Thirty encoder clicks in a row → one save, 1.5 s after the last click, writing only the
   keys that changed. Change-then-undo before the timer → no write at all.
@@ -191,10 +225,11 @@ Key design rules:
 | Namespace | Key | Content |
 |---|---|---|
 | `tcg` | `ver` | schema version (mismatch → defaults, never garbage) |
-| `tcg` | `p1`…`p4` | Commander life totals |
+| `tcg` | `np` | number of players, 2–6 (missing in saves before v0.4 → 4) |
+| `tcg` | `p1`…`p6` | Commander life totals |
 | `tcg` | `sel` | selected player |
-| `tcg` | `scr` | last active screen (the device boots back into Commander) |
-| `tcg` | `cd` | commander damage, 4×4 bytes `[victim][source]` (missing in v0.1 saves → all 0) |
+| `tcg` | `scr` | last active screen (the device boots back into the game) |
+| `tcg` | `cd` | commander damage, 6×6 bytes `[victim][source]` (v0.2–v0.3 saved 4×4: converted on load, the game is kept; missing in v0.1 saves → all 0) |
 | `tcgtouch` | `cal`, `calv` | touch calibration (separate, so a future game reset can't erase it) |
 
 ---
@@ -409,7 +444,7 @@ mode. Screens can also implement the optional `tick()` hook in `ScreenModule` fo
 | 5 | Serial shows `idle AB=11` for the encoder | pull-ups / wiring (section 6) |
 | 6 | Clockwise = +1 on the selected player | `ENC_REVERSE` |
 | 7 | One click = exactly one point | `ENC_STEPS_PER_DETENT` |
-| 8 | Encoder press cycles P1→P2→P3→P4→P1 | `ENC_SW_ACTIVE_LOW`, switch wiring |
+| 8 | Encoder press cycles P1→P2→…→P1 through the players at the table | `ENC_SW_ACTIVE_LOW`, switch wiring |
 | 9 | Change life, wait 2 s (`[storage] saved` in the log), power off/on → same totals, still in Commander | — |
 | 10 | Touch and encoder used together: no missed or doubled changes | report back with the serial log |
 
@@ -423,8 +458,9 @@ mode. Screens can also implement the optional `tick()` hook in `ScreenModule` fo
 | Image mirrored | Wrong driver for the panel (try the other one) |
 | Touch works but is offset | Re-calibrate; tap arrow tips precisely |
 | Phantom touches | Raise `TOUCH_MIN_PRESSURE` (try 3–6) |
-| Centre ⌂ / BACK / menu entry doesn't react | Tap and release within 1.2 s — longer presses are ignored on purpose (`TOUCH_TAP_MAX_MS`) |
+| Centre ≡ / BACK / menu entry doesn't react | Tap and release within 1.2 s — longer presses are ignored on purpose (`TOUCH_TAP_MAX_MS`) |
 | Random player switching | Switch pin floating → pull-up missing |
 | No serial output | Monitor at 115200; `DEBUG_LOG 1` in `Config.h` |
 | Build error mentioning `Config.h` | The encoder pin check — read the message, change the pin |
-| Want a fresh game in V0.1 | No reset yet (by design). Re-flash from the web flasher with *Erase device* ticked (or `pio run -t erase`, then upload); this also clears calibration |
+| Want a fresh game | Centre ≡ → pick the number of players → START |
+| Head-of-table swipe doesn't open commander damage | Swipe along the long side of that card (up/down on the screen) |

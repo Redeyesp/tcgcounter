@@ -8,16 +8,31 @@ static int16_t clampLife(int v) {
   return (int16_t)v;
 }
 
-void commanderNewGame(CommanderGame& g) {
-  for (uint8_t i = 0; i < COMMANDER_PLAYERS; ++i) {
+static uint8_t clampPlayers(int n) {
+  if (n < COMMANDER_MIN_PLAYERS || n > COMMANDER_MAX_PLAYERS) return COMMANDER_DEFAULT_PLAYERS;
+  return (uint8_t)n;
+}
+
+void commanderNewGame(CommanderGame& g, uint8_t players) {
+  g.players = clampPlayers(players);
+  for (uint8_t i = 0; i < COMMANDER_MAX_PLAYERS; ++i) {  // unused seats too: no stale values
     g.life[i] = COMMANDER_START_LIFE;
-    for (uint8_t j = 0; j < COMMANDER_PLAYERS; ++j) g.cmdDamage[i][j] = 0;
+    for (uint8_t j = 0; j < COMMANDER_MAX_PLAYERS; ++j) g.cmdDamage[i][j] = 0;
   }
   g.selected = 0;
 }
 
+bool commanderIsFresh(const CommanderGame& g) {
+  for (uint8_t i = 0; i < g.players; ++i) {
+    if (g.life[i] != COMMANDER_START_LIFE) return false;
+    for (uint8_t j = 0; j < g.players; ++j)
+      if (g.cmdDamage[i][j] != 0) return false;
+  }
+  return true;
+}
+
 bool commanderAdjustCmdDamage(CommanderGame& g, uint8_t victim, uint8_t source, int delta) {
-  if (victim >= COMMANDER_PLAYERS || source >= COMMANDER_PLAYERS || victim == source || delta == 0)
+  if (victim >= g.players || source >= g.players || victim == source || delta == 0)
     return false;
   const int before = g.cmdDamage[victim][source];
   int after = before + delta;
@@ -36,8 +51,8 @@ uint8_t commanderOpponent(uint8_t player, uint8_t index) {
 }
 
 OutReason commanderOutReason(const CommanderGame& g, uint8_t player, uint8_t* source) {
-  if (player >= COMMANDER_PLAYERS) return OutReason::None;
-  for (uint8_t j = 0; j < COMMANDER_PLAYERS; ++j) {
+  if (player >= g.players) return OutReason::None;
+  for (uint8_t j = 0; j < g.players; ++j) {
     if (j != player && g.cmdDamage[player][j] >= CMD_DAMAGE_LETHAL) {
       if (source) *source = j;
       return OutReason::CommanderDamage;
@@ -48,18 +63,18 @@ OutReason commanderOutReason(const CommanderGame& g, uint8_t player, uint8_t* so
 }
 
 bool commanderAdjustLife(CommanderGame& g, uint8_t player, int delta) {
-  if (player >= COMMANDER_PLAYERS || delta == 0) return false;
+  if (player >= g.players || delta == 0) return false;
   int16_t before = g.life[player];
   g.life[player] = clampLife((int)before + delta);
   return g.life[player] != before;
 }
 
 void commanderSelect(CommanderGame& g, uint8_t player) {
-  if (player < COMMANDER_PLAYERS) g.selected = player;
+  if (player < g.players) g.selected = player;
 }
 
 void commanderSelectNext(CommanderGame& g) {
-  g.selected = (uint8_t)((g.selected + 1) % COMMANDER_PLAYERS);
+  g.selected = (uint8_t)((g.selected + 1) % g.players);
 }
 
 void appStateSetDefaults(AppState& s) {
@@ -69,10 +84,11 @@ void appStateSetDefaults(AppState& s) {
 
 void appStateSanitize(AppState& s) {
   if (s.screen >= SCREEN_COUNT) s.screen = SCREEN_HOME;
-  if (s.commander.selected >= COMMANDER_PLAYERS) s.commander.selected = 0;
-  for (uint8_t i = 0; i < COMMANDER_PLAYERS; ++i) {
+  s.commander.players = clampPlayers(s.commander.players);
+  if (s.commander.selected >= s.commander.players) s.commander.selected = 0;
+  for (uint8_t i = 0; i < COMMANDER_MAX_PLAYERS; ++i) {
     s.commander.life[i] = clampLife(s.commander.life[i]);
-    for (uint8_t j = 0; j < COMMANDER_PLAYERS; ++j) {
+    for (uint8_t j = 0; j < COMMANDER_MAX_PLAYERS; ++j) {
       uint8_t& d = s.commander.cmdDamage[i][j];
       if (i == j || d > CMD_DAMAGE_MAX) d = 0;
     }
@@ -80,10 +96,10 @@ void appStateSanitize(AppState& s) {
 }
 
 bool operator==(const CommanderGame& a, const CommanderGame& b) {
-  if (a.selected != b.selected) return false;
-  for (uint8_t i = 0; i < COMMANDER_PLAYERS; ++i) {
+  if (a.players != b.players || a.selected != b.selected) return false;
+  for (uint8_t i = 0; i < COMMANDER_MAX_PLAYERS; ++i) {
     if (a.life[i] != b.life[i]) return false;
-    for (uint8_t j = 0; j < COMMANDER_PLAYERS; ++j)
+    for (uint8_t j = 0; j < COMMANDER_MAX_PLAYERS; ++j)
       if (a.cmdDamage[i][j] != b.cmdDamage[i][j]) return false;
   }
   return true;

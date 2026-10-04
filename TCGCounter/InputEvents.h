@@ -13,10 +13,11 @@ enum class InputType : uint8_t {
   TouchDown,         // finger accepted at (x, y)
   TouchRepeat,       // finger still held: auto-repeat tick, (x, y) = original press point
                      // (stops once the finger starts moving: no repeats during a swipe)
-  TouchSwipe,        // horizontal swipe finished; delta = -1 left / +1 right,
+  TouchSwipe,        // swipe finished; delta = SWIPE_LEFT/RIGHT/UP/DOWN (screen directions),
                      // (x, y) = where it started. Always followed by TouchUp.
   TouchUp,           // finger lifted; (x, y) = original press point, durationMs = hold time,
-                     // delta = TOUCH_UP_TAP (0), -1/+1 after a swipe, TOUCH_UP_DRAGGED otherwise
+                     // delta = TOUCH_UP_TAP (0), the SWIPE_* code after a swipe,
+                     // TOUCH_UP_DRAGGED otherwise
   EncoderTurn,       // delta = +n clockwise / -n counter-clockwise detents
   EncoderClick,      // short press of the encoder switch (fires on release)
   EncoderLongPress,  // switch held >= ENC_LONG_PRESS_MS (reserved; unused in V0.1)
@@ -31,7 +32,13 @@ struct InputEvent {
 };
 
 constexpr int16_t TOUCH_UP_TAP     = 0;  // finger stayed put
-constexpr int16_t TOUCH_UP_DRAGGED = 2;  // finger moved, but not a horizontal swipe
+constexpr int16_t TOUCH_UP_DRAGGED = 2;  // finger moved, but not a straight swipe
+
+// Swipe directions on the screen (as the screen is normally held).
+constexpr int16_t SWIPE_LEFT  = -1;
+constexpr int16_t SWIPE_RIGHT = +1;
+constexpr int16_t SWIPE_UP    = -3;
+constexpr int16_t SWIPE_DOWN  = +3;
 
 // A "tap": TouchUp where the finger didn't travel and wasn't held too long.
 inline bool isTap(const InputEvent& e, uint16_t maxMs) {

@@ -163,9 +163,10 @@ void updateTouch() {
     s_state = TouchState::Idle;
     const uint32_t held = s_lastSeen - s_downAt;
     const uint16_t held16 = (uint16_t)(held > 65535 ? 65535 : held);
-    const int8_t swipe = classifySwipe(s_lastX - s_downX, s_lastY - s_downY);
+    const int16_t swipe = classifySwipe(s_lastX - s_downX, s_lastY - s_downY);
     if (swipe != 0) {
-      LOGF("[touch] swipe %s (dx=%d dy=%d)\n", swipe < 0 ? "left" : "right",
+      LOGF("[touch] swipe %s (dx=%d dy=%d)\n",
+           swipe == SWIPE_LEFT ? "left" : swipe == SWIPE_RIGHT ? "right" : swipe == SWIPE_UP ? "up" : "down",
            s_lastX - s_downX, s_lastY - s_downY);
       emit(InputType::TouchSwipe, held16, swipe);
     }

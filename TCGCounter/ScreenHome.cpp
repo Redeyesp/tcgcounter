@@ -23,7 +23,7 @@ struct MenuItem {
 // To add a new mode, add a Screen value, a ScreenModule and an entry here
 // (then re-space ITEM_Y / ITEM_H so the list still fits 240 px).
 const MenuItem ITEMS[] = {
-  {"COMMANDER", SCREEN_COMMANDER, true},
+  {"COMMANDER", SCREEN_COMMANDER_SETUP, true},  // menu first: players / continue / new game
   {"DICE",      SCREEN_DICE,      false},
   {"RIFTBOUND", SCREEN_RIFTBOUND, false},
 };
