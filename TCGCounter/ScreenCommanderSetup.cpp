@@ -3,7 +3,7 @@
  *  the running game, or start a new one.
  *
  *  ┌──────────────────────────────────────────┐
- *  │ [< HOME]                       COMMANDER │
+ *  │ [< HOME]                       [🎲 DICE] │  DICE: dice page, BACK -> the game
  *  │ ┌──────────────────────────────────────┐ │
  *  │ │ CONTINUE                 4 PLAYERS > │ │  back to the running game
  *  │ └──────────────────────────────────────┘ │
@@ -17,6 +17,7 @@
  *  commander damage): then there is nothing to lose and it starts directly.
  *
  *  Reached from Home -> COMMANDER and from the ≡ button in the game.
+ *  DICE opens the Dice page (D4..D20); its BACK returns straight to the game.
  *  Touch:   tap a button.
  *  Encoder: turn = move the yellow focus frame, press = choose,
  *           long-press in the question = CANCEL.
@@ -27,16 +28,18 @@
 #include "Theme.h"
 #include "Ui.h"
 #include "UiConfirm.h"
+#include "UiDice.h"
 #include "Config.h"
 #include <stdio.h>
 
 namespace {
 
-constexpr int8_t ITEM_BACK = 0, ITEM_CONTINUE = 1, ITEM_FIRST_COUNT = 2;
+constexpr int8_t ITEM_BACK = 0, ITEM_DICE = 1, ITEM_CONTINUE = 2, ITEM_FIRST_COUNT = 3;
 constexpr int8_t COUNT_BUTTONS = COMMANDER_MAX_PLAYERS - COMMANDER_MIN_PLAYERS + 1;  // 2..6
 constexpr int8_t ITEM_COUNT = ITEM_FIRST_COUNT + COUNT_BUTTONS;
 
-constexpr Rect BACK     = {12, 6, 92, 34};
+constexpr Rect BACK     = {12, 6, 88, 34};
+constexpr Rect DICE_BTN = {220, 6, 88, 34};
 constexpr Rect CONTINUE = {12, 48, 296, 64};
 constexpr int  COUNT_X0 = 13, COUNT_Y = 146, COUNT_W = 54, COUNT_H = 64, COUNT_PITCH = 60;
 constexpr int  CAPTION_Y = 132, HINT_Y = 226;
@@ -45,6 +48,7 @@ uint8_t playersFor(int8_t item) { return (uint8_t)(COMMANDER_MIN_PLAYERS + item 
 
 Rect itemRect(int8_t item) {
   if (item == ITEM_BACK) return BACK;
+  if (item == ITEM_DICE) return DICE_BTN;
   if (item == ITEM_CONTINUE) return CONTINUE;
   const int k = item - ITEM_FIRST_COUNT;
   return Rect{(int16_t)(COUNT_X0 + k * COUNT_PITCH), (int16_t)COUNT_Y, (int16_t)COUNT_W, (int16_t)COUNT_H};
@@ -52,6 +56,7 @@ Rect itemRect(int8_t item) {
 
 // ---------------------------------------------------------------- UI-only state
 ConfirmDialog s_ask;            // "NEW GAME?"
+DiceOverlay   s_dice;           // Dice page
 uint8_t s_askPlayers = 0;       // players of the new game being asked about
 int8_t  s_focus = ITEM_CONTINUE;
 int8_t  s_pressed = -1;         // menu item under the finger
@@ -73,6 +78,8 @@ void startGame(uint8_t players) {
 void choose(int8_t item) {
   if (item == ITEM_BACK) {
     goToScreen(SCREEN_HOME);
+  } else if (item == ITEM_DICE) {
+    s_dice.open();
   } else if (item == ITEM_CONTINUE) {
     goToScreen(SCREEN_COMMANDER);
   } else if (item >= ITEM_FIRST_COUNT && item < ITEM_COUNT) {
@@ -95,7 +102,7 @@ void drawMenuItem(int8_t item) {
   const Rect r = itemRect(item);
   const bool pressed = (item == s_pressed);
   const uint16_t fill = pressed ? theme::BUTTON_DOWN : theme::BUTTON;
-  const int radius = item == ITEM_BACK ? 10 : 12;
+  const int radius = (item == ITEM_BACK || item == ITEM_DICE) ? 10 : 12;
 
   g.fillRect(r.x, r.y, r.w, r.h, theme::BG);
   g.fillRoundRect(r.x, r.y, r.w, r.h, radius, fill);
@@ -107,6 +114,15 @@ void drawMenuItem(int8_t item) {
     g.setTextDatum(lgfx::textdatum_t::middle_left);
     g.setTextColor(theme::TEXT);
     g.drawString("HOME", r.x + 32, r.cy() + 1);
+  } else if (item == ITEM_DICE) {
+    // small die (three pips) + DICE
+    const int dx = r.x + 20, dy = r.cy();
+    g.fillRoundRect(dx - 9, dy - 9, 19, 19, 4, theme::TEXT);
+    for (int k = -1; k <= 1; ++k) g.fillCircle(dx + 4 * k, dy + 4 * k, 2, fill);
+    g.setFont(theme::fontLabel());
+    g.setTextDatum(lgfx::textdatum_t::middle_left);
+    g.setTextColor(theme::TEXT);
+    g.drawString("DICE", r.x + 38, r.cy() + 1);
   } else if (item == ITEM_CONTINUE) {
     g.setFont(theme::fontButton());
     g.setTextDatum(lgfx::textdatum_t::middle_left);
@@ -131,11 +147,8 @@ void drawMenuItem(int8_t item) {
 
 void drawMenuPage() {
   auto& g = gfx();
-  g.setFont(theme::fontButton());
-  g.setTextDatum(lgfx::textdatum_t::middle_right);
-  g.setTextColor(theme::TEXT_DIM);
-  g.drawString("COMMANDER", 308, BACK.cy() + 1);
   g.setFont(theme::fontLabel());
+  g.setTextColor(theme::TEXT_DIM);
   g.setTextDatum(lgfx::textdatum_t::middle_left);
   g.drawString("NEW GAME - PLAYERS", 16, CAPTION_Y);
   g.setFont(theme::fontSmall());
@@ -149,11 +162,16 @@ void drawMenuPage() {
 // ---------------------------------------------------------------- module functions
 void onEnter() {
   s_ask.close();
+  s_dice.close();
   s_pressed = -1;
   s_focus = ITEM_CONTINUE;
 }
 
 void handleInput(const InputEvent& e) {
+  if (s_dice.isOpen()) {
+    if (s_dice.handleInput(e) == DiceResult::Back) goToScreen(SCREEN_COMMANDER);  // back to the game
+    return;
+  }
   if (s_ask.isOpen()) {
     if (s_ask.handleInput(e) == ConfirmResult::Confirm) startGame(s_askPlayers);
     return;
@@ -185,11 +203,12 @@ void handleInput(const InputEvent& e) {
 
 void render(bool full) {
   auto& g = gfx();
-  const bool ask = s_ask.isOpen();
+  const bool ask = s_ask.isOpen() || s_dice.isOpen();  // a full-screen page is up
   const bool pageChanged = ask != s_drawnAsk;
   s_drawnAsk = ask;
   if (ask) {
-    s_ask.render(full || pageChanged);
+    if (s_dice.isOpen()) s_dice.render(full || pageChanged);
+    else s_ask.render(full || pageChanged);
     return;
   }
   if (full || pageChanged) {  // (back on) the menu page: repaint everything
@@ -211,6 +230,8 @@ void render(bool full) {
   s_drawnPressed = s_pressed;
 }
 
+void tick(uint32_t now) { s_dice.tick(now); }
+
 }  // namespace
 
-const ScreenModule CommanderSetupScreen = {"CommanderSetup", onEnter, handleInput, render, nullptr};
+const ScreenModule CommanderSetupScreen = {"CommanderSetup", onEnter, handleInput, render, tick};

@@ -7,7 +7,7 @@
  *  │ ┌──┐                            ┌──┐ │  P1, upside down for the player
  *  │ │+ │          3 /8              │− │ │  across the table
  *  │ └──┘        PLAYER 1            └──┘ │
- *  ├──────────(⌂)───(H)───(↻)─────────────┤  ⌂ = Home  H = high roll  ↻ = Restart
+ *  ├────────(⌂)──(H)──(🎲)──(↻)────────────┤  ⌂ Home · H high roll · 🎲 dice · ↻ Restart
  *  │ ┌──┐        PLAYER 2            ┌──┐ │
  *  │ │− │          5 /8              │+ │ │  P2
  *  │ └──┘                            └──┘ │
@@ -17,6 +17,7 @@
  *           ⌂ = Home · ↻ = Restart (asks first; both back to 0)
  *           H = high roll: both cards show a D20 that spins and lands, the
  *           higher roll turns gold (a tie rolls again); tap to go back
+ *           🎲 = Dice page: D4 / D6 / D8 / D12 / D20, REROLL, BACK to the game
  *  Encoder: turn = selected player's score · press = other player
  *           long-press = Restart (asks first)
  *  Reaching the target turns the card gold: WINNER!  − still works, so a
@@ -32,6 +33,7 @@
 #include "Theme.h"
 #include "Ui.h"
 #include "UiConfirm.h"
+#include "UiDice.h"
 #include "Config.h"
 #include <stdio.h>
 
@@ -58,8 +60,8 @@ const Seat& seat(uint8_t p) { return tableLayout(2).seats[p]; }
 
 constexpr int CARD_W = 320, CARD_H = 119;
 constexpr int FRAME_R = 10, FRAME_THICK = 4;
-constexpr Rect BTN_MINUS = {10, 10, 60, 99};   // tall buttons at the card's sides
-constexpr Rect BTN_PLUS  = {250, 10, 60, 99};
+constexpr Rect BTN_MINUS = {10, 24, 60, 85};   // tall buttons at the card's sides,
+constexpr Rect BTN_PLUS  = {250, 24, 60, 85};  // below the round buttons' reach
 constexpr int  MINUS_ZONE_END = 80, PLUS_ZONE_START = 240;  // touch zones (card columns)
 constexpr int  NUM_CX = 160, NUM_CY = 58;       // centre of the digits (rows 23..92)
 constexpr int  CAPTION_Y = 105;  // rows ~99..111, below the digits
@@ -68,11 +70,11 @@ constexpr int  NUM_MAX_W = PLUS_ZONE_START - MINUS_ZONE_END - 4;
 // Centre buttons on the line between the cards. The card rows above the
 // digits (0..22) stay empty there, so the buttons never cover a number.
 constexpr int HUB_Y = 120;
-constexpr int HOME_X = 100, ROLL_X = 160, RESTART_X = 220;
+constexpr int HOME_X = 88, ROLL_X = 136, DICE_X = 184, RESTART_X = 232;
 constexpr int DIE_CY = 58, DIE_R = 34;   // high roll: D20 rows 24..92, clear of the buttons and the caption
 
 // ---------------------------------------------------------------- hit test
-enum class Zone : uint8_t { None, Area, Minus, Plus, Home, Roll, Restart };
+enum class Zone : uint8_t { None, Area, Minus, Plus, Home, Roll, Dice, Restart };
 struct Hit {
   Zone    zone;
   uint8_t player;
@@ -87,6 +89,7 @@ bool inHub(int x, int y, int hx) {
 Hit hitTest(int x, int y) {
   if (inHub(x, y, HOME_X)) return {Zone::Home, 0};
   if (inHub(x, y, ROLL_X)) return {Zone::Roll, 0};
+  if (inHub(x, y, DICE_X)) return {Zone::Dice, 0};
   if (inHub(x, y, RESTART_X)) return {Zone::Restart, 0};
   const uint8_t p = y >= HUB_Y ? 1 : 0;  // the 2 px gap belongs to the nearer card
   int lx, ly;
@@ -100,6 +103,7 @@ Hit hitTest(int x, int y) {
 Hit           s_press = NO_HIT;
 ConfirmDialog s_restart;
 HighRoll      s_roll;
+DiceOverlay   s_dice;
 
 uint8_t rollD20() { return (uint8_t)random(1, HIGHROLL_SIDES + 1); }  // hardware RNG on the ESP32
 
@@ -119,7 +123,7 @@ struct CardView {
 
 CardView s_drawn[SCORE_PLAYERS];
 Zone     s_drawnHubPressed = Zone::None;
-bool     s_drawnDialog = false;
+bool     s_drawnDialog = false;  // a full-screen page (question / dice) was on screen
 
 CardView viewOf(uint8_t p) {
   const ScoreGame& g = mode().game();
@@ -244,6 +248,7 @@ void drawCard(uint8_t p, const CardView& v) {
 void drawHubs(Zone pressed) {
   drawHubButton(HOME_X, HUB_Y, HubIcon::Home, pressed == Zone::Home);
   drawHubButton(ROLL_X, HUB_Y, HubIcon::HighRoll, pressed == Zone::Roll);
+  drawHubButton(DICE_X, HUB_Y, HubIcon::Dice, pressed == Zone::Dice);
   drawHubButton(RESTART_X, HUB_Y, HubIcon::Restart, pressed == Zone::Restart);
 }
 
@@ -280,10 +285,12 @@ void handleRollInput(const InputEvent& e) {
 void onEnter() {
   s_press = NO_HIT;
   s_restart.close();
+  s_dice.close();
   highRollStop(s_roll);
 }
 
 void handleInput(const InputEvent& e) {
+  if (s_dice.isOpen()) { s_dice.handleInput(e); return; }  // BACK closes it: the table repaints
   if (highRollActive(s_roll)) { handleRollInput(e); return; }
   if (s_restart.isOpen()) {
     if (s_restart.handleInput(e) == ConfirmResult::Confirm) scoreNewGame(mode().game());
@@ -317,6 +324,7 @@ void handleInput(const InputEvent& e) {
       if (!isTap(e, TOUCH_TAP_MAX_MS)) break;
       if (released.zone == Zone::Home) goToScreen(SCREEN_HOME);
       else if (released.zone == Zone::Roll) startHighRoll();
+      else if (released.zone == Zone::Dice) s_dice.open();
       else if (released.zone == Zone::Restart) askRestart();
       break;
     }
@@ -326,17 +334,19 @@ void handleInput(const InputEvent& e) {
 }
 
 void render(bool full) {
-  const bool dialog = s_restart.isOpen();
+  const bool dialog = s_restart.isOpen() || s_dice.isOpen();
   const bool pageChanged = dialog != s_drawnDialog;
   s_drawnDialog = dialog;
   if (dialog) {
-    s_restart.render(full || pageChanged);
+    if (s_dice.isOpen()) s_dice.render(full || pageChanged);
+    else s_restart.render(full || pageChanged);
     return;
   }
   full = full || pageChanged;  // back from the question: repaint the table
 
   auto& g = gfx();
-  const bool onHub = s_press.zone == Zone::Home || s_press.zone == Zone::Roll || s_press.zone == Zone::Restart;
+  const bool onHub = s_press.zone == Zone::Home || s_press.zone == Zone::Roll ||
+                     s_press.zone == Zone::Dice || s_press.zone == Zone::Restart;
   const Zone hubPressed = onHub ? s_press.zone : Zone::None;
   bool hubDirty = full || hubPressed != s_drawnHubPressed;
   bool started = false;
@@ -363,6 +373,7 @@ void render(bool full) {
 
 void tick(uint32_t now) {
   if (highRollActive(s_roll)) highRollUpdate(s_roll, now, rollD20);
+  s_dice.tick(now);
 }
 
 }  // namespace

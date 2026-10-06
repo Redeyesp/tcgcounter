@@ -16,7 +16,7 @@
  * ==========================================================================*/
 
 #define FW_NAME     "TCG Counter"
-#define FW_VERSION  "0.6.0"
+#define FW_VERSION  "0.7.0"
 
 /* ============================================================================
  *  1. ROTARY ENCODER (EC11 with push switch)
@@ -159,6 +159,7 @@
 #define HIGHROLL_FLIP_FAST_MS    50   //   face change interval at the start ...
 #define HIGHROLL_FLIP_SLOW_MS    220  //   ... slowing down to this just before landing
 #define HIGHROLL_TIE_MS          1100 //   pause showing a tie before the tied players roll again
+#define DICE_ROLL_MS             1000 // Dice page: how long a die keeps changing before it lands
 #define COMMANDER_FACE_SEATS     1    // 1 = every card faces the player at its table edge
                                       //     (top row upside down, head of table sideways)
                                       // 0 = all cards upright for someone at the bottom edge

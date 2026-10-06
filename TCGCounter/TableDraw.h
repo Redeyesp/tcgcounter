@@ -17,7 +17,7 @@ using CardPainter = void (*)(lgfx::LovyanGFX& c, int ox, int oy, const void* ctx
 // cards; bigger cards are drawn in bands.
 void drawSeatCard(const Seat& seat, CardPainter paint, const void* ctx);
 
-enum class HubIcon : uint8_t { Menu, Close, Home, Restart, HighRoll };
+enum class HubIcon : uint8_t { Menu, Close, Home, Restart, HighRoll, Dice };
 
 // Round button between the cards, with a dark moat around it
 // (HUB_R / HUB_MOAT / HUB_HIT_R in CommanderLayout.h).
@@ -27,3 +27,9 @@ void drawHubButton(int x, int y, HubIcon icon, bool pressed);
 // number, coloured for the die's state: player colour while rolling, gold
 // for the winner, amber for a tie, dimmed when out.
 void drawD20(lgfx::LovyanGFX& c, int cx, int cy, int r, DieState state, uint16_t playerColor, uint8_t value);
+
+// Any of the dice: 4 (triangle), 6 (square), 8 (diamond), 12 (pentagon) or
+// 20 (hexagon) sides, about r pixels from the centre to the outline. Same
+// colours as drawD20; value 0 = no number.
+void drawDie(lgfx::LovyanGFX& c, int cx, int cy, int r, uint8_t sides, DieState state,
+             uint16_t edgeColor, uint8_t value);

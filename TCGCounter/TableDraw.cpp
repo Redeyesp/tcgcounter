@@ -47,6 +47,15 @@ void highRollIcon(int cx, int cy, uint16_t color) {
   g.drawString("H", cx + 1, cy + 1);  // a little bolder
 }
 
+// A die showing three pips.
+void diceIcon(int cx, int cy, uint16_t color, uint16_t pip) {
+  auto& g = gfx();
+  g.fillRoundRect(cx - 9, cy - 9, 19, 19, 4, color);
+  g.fillCircle(cx - 4, cy - 4, 2, pip);
+  g.fillCircle(cx, cy, 2, pip);
+  g.fillCircle(cx + 4, cy + 4, 2, pip);
+}
+
 // RGB565 blend: t = 0 -> a, 255 -> b
 uint16_t mix565(uint16_t a, uint16_t b, uint8_t t) {
   const int ar = a >> 11, ag = (a >> 5) & 63, ab = a & 31;
@@ -113,58 +122,135 @@ void drawHubButton(int x, int y, HubIcon icon, bool pressed) {
     case HubIcon::Home:    uiHomeIcon(g, x, y + 1, ink, fill); break;
     case HubIcon::Restart: restartIcon(x, y, ink); break;
     case HubIcon::HighRoll: highRollIcon(x, y, ink); break;
+    case HubIcon::Dice:    diceIcon(x, y, ink, fill); break;
   }
 }
 
-void drawD20(lgfx::LovyanGFX& c, int cx, int cy, int r, DieState state, uint16_t playerColor, uint8_t value) {
-  uint16_t fill, edge, facet, text;
-  switch (state) {
-    case DieState::Winner:
-      fill = theme::ACCENT; edge = mix565(theme::ACCENT, theme::BG, 110);
-      facet = mix565(theme::ACCENT, theme::BG, 70); text = theme::TEXT_ON_ACCENT;
-      break;
-    case DieState::Tied:
-      fill = theme::BUTTON; edge = theme::ACCENT;
-      facet = mix565(theme::ACCENT, theme::BUTTON, 150); text = theme::ACCENT;
-      break;
-    case DieState::Out:
-      fill = theme::PANEL; edge = theme::PANEL_EDGE;
-      facet = mix565(theme::PANEL_EDGE, theme::PANEL, 110); text = theme::TEXT_DIM;
-      break;
-    default:  // Rolling
-      fill = theme::BUTTON; edge = playerColor;
-      facet = mix565(playerColor, theme::BUTTON, 150); text = theme::TEXT;
-      break;
-  }
-  // Pointy-top hexagon = the die's outline; a triangle in the middle = the
-  // face towards you; lines from its corners to the outline = the side faces.
-  int hx[6], hy[6], tx[3], ty[3];
-  const float ri = r * 0.6f;
-  for (int k = 0; k < 6; ++k) {
-    const float a = (90.0f + 60.0f * k) * 3.14159265f / 180.0f;
-    hx[k] = cx + (int)lroundf(r * cosf(a));
-    hy[k] = cy - (int)lroundf(r * sinf(a));
-    if (k % 2 == 0) {
-      tx[k / 2] = cx + (int)lroundf(ri * cosf(a));
-      ty[k / 2] = cy - (int)lroundf(ri * sinf(a));
-    }
-  }
-  for (int k = 0; k < 6; ++k) c.fillTriangle(cx, cy, hx[k], hy[k], hx[(k + 1) % 6], hy[(k + 1) % 6], fill);
-  for (int k = 0; k < 3; ++k) {
-    const int v = 2 * k;  // hexagon corner straight out from this triangle corner
-    uiThickLine(c, tx[k], ty[k], hx[v], hy[v], 2, facet);
-    uiThickLine(c, tx[k], ty[k], hx[(v + 1) % 6], hy[(v + 1) % 6], 2, facet);
-    uiThickLine(c, tx[k], ty[k], hx[(v + 5) % 6], hy[(v + 5) % 6], 2, facet);
-    uiThickLine(c, tx[k], ty[k], tx[(k + 1) % 3], ty[(k + 1) % 3], 2, facet);
-  }
-  for (int k = 0; k < 6; ++k) uiThickLine(c, hx[k], hy[k], hx[(k + 1) % 6], hy[(k + 1) % 6], 3, edge);
+namespace {
 
+struct DieColors { uint16_t fill, edge, facet, text; };
+
+DieColors dieColors(DieState state, uint16_t edgeColor) {
+  switch (state) {
+    case DieState::Winner:  // landed / won: gold
+      return {theme::ACCENT, mix565(theme::ACCENT, theme::BG, 110), mix565(theme::ACCENT, theme::BG, 70),
+              theme::TEXT_ON_ACCENT};
+    case DieState::Tied:
+      return {theme::BUTTON, theme::ACCENT, mix565(theme::ACCENT, theme::BUTTON, 150), theme::ACCENT};
+    case DieState::Out:
+      return {theme::PANEL, theme::PANEL_EDGE, mix565(theme::PANEL_EDGE, theme::PANEL, 110), theme::TEXT_DIM};
+    default:  // Rolling
+      return {theme::BUTTON, edgeColor, mix565(edgeColor, theme::BUTTON, 150), theme::TEXT};
+  }
+}
+
+int px(float v) { return (int)lroundf(v); }
+
+// Corner k of a regular polygon: `n` corners, the first straight up.
+void corner(int cx, int cy, float r, int n, int k, float startDeg, int& x, int& y) {
+  const float a = (startDeg + 360.0f * k / n) * 3.14159265f / 180.0f;
+  x = cx + px(r * cosf(a));
+  y = cy - px(r * sinf(a));
+}
+
+void fillPolygon(lgfx::LovyanGFX& c, int cx, int cy, const int* xs, const int* ys, int n, uint16_t color) {
+  for (int k = 0; k < n; ++k) c.fillTriangle(cx, cy, xs[k], ys[k], xs[(k + 1) % n], ys[(k + 1) % n], color);
+}
+
+void outlinePolygon(lgfx::LovyanGFX& c, const int* xs, const int* ys, int n, int thick, uint16_t color) {
+  for (int k = 0; k < n; ++k) uiThickLine(c, xs[k], ys[k], xs[(k + 1) % n], ys[(k + 1) % n], thick, color);
+}
+
+void dieNumber(lgfx::LovyanGFX& c, int cx, int cy, int r, uint8_t value, uint16_t color) {
+  if (value == 0) return;
   char num[4];
   snprintf(num, sizeof(num), "%u", (unsigned)value);
-  c.setFont(r >= 30 ? theme::fontTitle() : theme::fontButton());
+  c.setFont(r >= 42 ? theme::fontHuge() : r >= 30 ? theme::fontTitle() : theme::fontButton());
   c.setTextDatum(lgfx::textdatum_t::middle_center);
-  c.setTextColor(text);
-  const int ny = cy + r / 10;  // the face triangle is wider below its centre
-  c.drawString(num, cx, ny);
-  c.drawString(num, cx + 1, ny);
+  c.setTextColor(color);
+  c.drawString(num, cx, cy);
+  c.drawString(num, cx + 1, cy);
+}
+
+}  // namespace
+
+void drawDie(lgfx::LovyanGFX& c, int cx, int cy, int r, uint8_t sides, DieState state,
+             uint16_t edgeColor, uint8_t value) {
+  const DieColors k = dieColors(state, edgeColor);
+  const int edgeT = r >= 30 ? 3 : 2;
+  int xs[6], ys[6];
+  switch (sides) {
+    case 4: {  // triangle seen from above, three faces meeting in the middle
+      const int R = r * 6 / 5;      // a triangle needs a bigger radius to look as big
+      const int ccy = cy + R / 4;   // centroid lowered: the triangle sits centred in its box
+      for (int i = 0; i < 3; ++i) corner(cx, ccy, (float)R, 3, i, 90.0f, xs[i], ys[i]);
+      c.fillTriangle(xs[0], ys[0], xs[1], ys[1], xs[2], ys[2], k.fill);
+      for (int i = 0; i < 3; ++i) {  // ridges from the corners, stopping short of the number
+        int ix, iy;
+        corner(cx, ccy, R * 0.45f, 3, i, 90.0f, ix, iy);
+        uiThickLine(c, xs[i], ys[i], ix, iy, 2, k.facet);
+      }
+      outlinePolygon(c, xs, ys, 3, edgeT, k.edge);
+      dieNumber(c, cx, ccy + R / 10, r, value, k.text);
+      return;
+    }
+    case 6: {  // cube face
+      const int half = r * 4 / 5, rad = r / 5;
+      c.fillRoundRect(cx - half, cy - half, 2 * half, 2 * half, rad, k.fill);
+      if (r >= 30) c.drawRoundRect(cx - half + 6, cy - half + 6, 2 * half - 12, 2 * half - 12, rad, k.facet);
+      uiRoundFrame(c, cx - half, cy - half, 2 * half, 2 * half, rad, edgeT, k.edge);
+      dieNumber(c, cx, cy + 1, r, value, k.text);
+      return;
+    }
+    case 8: {  // diamond: two faces meeting at the equator
+      const int w = r * 17 / 20;
+      xs[0] = cx;     ys[0] = cy - r;
+      xs[1] = cx + w; ys[1] = cy;
+      xs[2] = cx;     ys[2] = cy + r;
+      xs[3] = cx - w; ys[3] = cy;
+      fillPolygon(c, cx, cy, xs, ys, 4, k.fill);
+      const int gap = r / 2;  // equator line, broken where the number sits
+      uiThickLine(c, cx - w, cy, cx - gap, cy, 2, k.facet);
+      uiThickLine(c, cx + gap, cy, cx + w, cy, 2, k.facet);
+      outlinePolygon(c, xs, ys, 4, edgeT, k.edge);
+      dieNumber(c, cx, cy, r, value, k.text);
+      return;
+    }
+    case 12: {  // pentagon outline, pentagon face in the middle
+      int ix[5], iy[5];
+      for (int i = 0; i < 5; ++i) {
+        corner(cx, cy, r * 1.05f, 5, i, 90.0f, xs[i], ys[i]);
+        corner(cx, cy, r * 0.62f, 5, i, 90.0f, ix[i], iy[i]);
+      }
+      fillPolygon(c, cx, cy, xs, ys, 5, k.fill);
+      for (int i = 0; i < 5; ++i) uiThickLine(c, ix[i], iy[i], xs[i], ys[i], 2, k.facet);
+      outlinePolygon(c, ix, iy, 5, 2, k.facet);
+      outlinePolygon(c, xs, ys, 5, edgeT, k.edge);
+      dieNumber(c, cx, cy + r / 12, r, value, k.text);
+      return;
+    }
+    default:
+      break;
+  }
+  // D20: pointy-top hexagon = the outline; a triangle in the middle = the face
+  // towards you; lines from its corners to the outline = the side faces.
+  int tx[3], ty[3];
+  for (int i = 0; i < 6; ++i) {
+    corner(cx, cy, (float)r, 6, i, 90.0f, xs[i], ys[i]);
+    if (i % 2 == 0) corner(cx, cy, r * 0.6f, 6, i, 90.0f, tx[i / 2], ty[i / 2]);
+  }
+  fillPolygon(c, cx, cy, xs, ys, 6, k.fill);
+  for (int i = 0; i < 3; ++i) {
+    const int v = 2 * i;  // hexagon corner straight out from this triangle corner
+    uiThickLine(c, tx[i], ty[i], xs[v], ys[v], 2, k.facet);
+    uiThickLine(c, tx[i], ty[i], xs[(v + 1) % 6], ys[(v + 1) % 6], 2, k.facet);
+    uiThickLine(c, tx[i], ty[i], xs[(v + 5) % 6], ys[(v + 5) % 6], 2, k.facet);
+    uiThickLine(c, tx[i], ty[i], tx[(i + 1) % 3], ty[(i + 1) % 3], 2, k.facet);
+  }
+  outlinePolygon(c, xs, ys, 6, edgeT, k.edge);
+  dieNumber(c, cx, cy + r / 10, r, value, k.text);  // the face is wider below its centre
+}
+
+void drawD20(lgfx::LovyanGFX& c, int cx, int cy, int r, DieState state, uint16_t playerColor, uint8_t value) {
+  drawDie(c, cx, cy, r, 20, state, playerColor, value);
 }
