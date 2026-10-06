@@ -14,8 +14,11 @@
  *                             36 bytes (6x6) from v0.4,
  *                             16 bytes (4x4) in v0.2-v0.3 -> converted on load,
  *                             missing (v0.1) -> all zero
- *                        rb   (3 bytes) Riftbound: P1 score, P2 score, selected (v0.5+)
- *                        lc   (3 bytes) Lorcana:   P1 lore,  P2 lore,  selected (v0.5+)
+ *                        rb   Riftbound, lc Lorcana:
+ *                             12 bytes from v0.9: players, teams, target,
+ *                               score P1..P4, plus life P1..P4, selected
+ *                             3 bytes in v0.5-v0.8 (2 players, default target):
+ *                               P1 score, P2 score, selected -> converted on load
  *  namespace "tcgtouch"  calv (u8)  calibration format version
  *                        cal  (16 bytes) LovyanGFX calibration (8 x u16)
  *
@@ -35,19 +38,40 @@ static bool     s_flashHasData = false;
 static AppState s_lastSeen;           // g_state as of the previous loop
 static uint32_t s_lastChangeMs = 0;
 
-// ScoreGame <-> 3-byte blob {score P1, score P2, selected}
-static const size_t SCORE_BLOB = SCORE_PLAYERS + 1;
+// ScoreGame <-> blob {players, teams, target, score[4], bonus[4], selected}
+static const size_t SCORE_BLOB = 3 + 2 * SCORE_MAX_PLAYERS + 1;
+static const size_t OLD_SCORE_BLOB = 3;  // v0.5-v0.8: {score P1, score P2, selected}
 static void loadScore(Preferences& p, const char* key, ScoreGame& g) {
-  if (!p.isKey(key) || p.getBytesLength(key) != SCORE_BLOB) return;  // keep defaults
+  if (!p.isKey(key)) return;  // keep defaults
+  const size_t len = p.getBytesLength(key);
   uint8_t b[SCORE_BLOB];
-  p.getBytes(key, b, sizeof(b));
-  for (uint8_t i = 0; i < SCORE_PLAYERS; ++i) g.score[i] = b[i];
-  g.selected = b[SCORE_PLAYERS];
+  if (len == SCORE_BLOB) {
+    p.getBytes(key, b, sizeof(b));
+    g.players = b[0];
+    g.teams = b[1] != 0;
+    g.target = b[2];
+    for (uint8_t i = 0; i < SCORE_MAX_PLAYERS; ++i) {
+      g.score[i] = b[3 + i];
+      g.bonus[i] = b[3 + SCORE_MAX_PLAYERS + i];
+    }
+    g.selected = b[SCORE_BLOB - 1];
+  } else if (len == OLD_SCORE_BLOB) {  // 2-player game, default target (already set)
+    p.getBytes(key, b, OLD_SCORE_BLOB);
+    g.score[0] = b[0];
+    g.score[1] = b[1];
+    g.selected = b[2];
+  }
 }
 static void saveScore(Preferences& p, const char* key, const ScoreGame& g) {
   uint8_t b[SCORE_BLOB];
-  for (uint8_t i = 0; i < SCORE_PLAYERS; ++i) b[i] = g.score[i];
-  b[SCORE_PLAYERS] = g.selected;
+  b[0] = g.players;
+  b[1] = g.teams ? 1 : 0;
+  b[2] = g.target;
+  for (uint8_t i = 0; i < SCORE_MAX_PLAYERS; ++i) {
+    b[3 + i] = g.score[i];
+    b[3 + SCORE_MAX_PLAYERS + i] = g.bonus[i];
+  }
+  b[SCORE_BLOB - 1] = g.selected;
   p.putBytes(key, b, sizeof(b));
 }
 
@@ -95,8 +119,12 @@ void loadState() {
        restored ? "restored" : "no saved game, defaults", c.players,
        c.life[0], c.life[1], c.life[2], c.life[3], c.life[4], c.life[5],
        c.selected + 1, (unsigned)g_state.screen);
-  LOGF("[storage] riftbound %u-%u, lorcana %u-%u\n", g_state.riftbound.score[0],
-       g_state.riftbound.score[1], g_state.lorcana.score[0], g_state.lorcana.score[1]);
+  const ScoreGame& r = g_state.riftbound;
+  const ScoreGame& l = g_state.lorcana;
+  LOGF("[storage] riftbound %u cards%s to %u: %u-%u-%u-%u, lorcana %u cards to %u: %u-%u-%u-%u\n",
+       r.players, r.teams ? " (teams)" : "", r.target, scoreTotal(r, 0), scoreTotal(r, 1),
+       scoreTotal(r, 2), scoreTotal(r, 3), l.players, l.target, scoreTotal(l, 0),
+       scoreTotal(l, 1), scoreTotal(l, 2), scoreTotal(l, 3));
 }
 
 static void writeState(const AppState& s) {

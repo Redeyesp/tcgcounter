@@ -77,44 +77,69 @@ void commanderSelectNext(CommanderGame& g) {
   g.selected = (uint8_t)((g.selected + 1) % g.players);
 }
 
-void scoreNewGame(ScoreGame& g) {
-  for (uint8_t i = 0; i < SCORE_PLAYERS; ++i) g.score[i] = 0;
+static uint8_t clampScorePlayers(int n) { return n == 4 ? 4 : 2; }
+
+void scoreNewGame(ScoreGame& g, uint8_t players, uint8_t target, bool teams) {
+  g.players = clampScorePlayers(players);
+  g.teams = teams && g.players == 2;
+  g.target = target < 1 ? 1 : (target > SCORE_TARGET_MAX ? SCORE_TARGET_MAX : target);
+  scoreRestart(g);
+}
+
+void scoreRestart(ScoreGame& g) {
+  for (uint8_t i = 0; i < SCORE_MAX_PLAYERS; ++i) {  // unused cards too: no stale values
+    g.score[i] = 0;
+    g.bonus[i] = 0;
+  }
   g.selected = 0;
 }
 
 bool scoreIsFresh(const ScoreGame& g) {
-  for (uint8_t i = 0; i < SCORE_PLAYERS; ++i)
-    if (g.score[i] != 0) return false;
+  for (uint8_t i = 0; i < g.players; ++i)
+    if (g.score[i] != 0 || g.bonus[i] != 0) return false;
   return true;
 }
 
-bool scoreAdjust(ScoreGame& g, uint8_t player, int delta, uint8_t target) {
-  if (player >= SCORE_PLAYERS || delta == 0) return false;
+bool scoreAdjust(ScoreGame& g, uint8_t player, int delta) {
+  if (player >= g.players || delta == 0) return false;
   int v = (int)g.score[player] + delta;
   if (v < 0) v = 0;
-  if (v > target) v = target;
+  if (v > g.target) v = g.target;
   if (v == g.score[player]) return false;
   g.score[player] = (uint8_t)v;
   return true;
 }
 
-void scoreSelect(ScoreGame& g, uint8_t player) {
-  if (player < SCORE_PLAYERS) g.selected = player;
+bool scoreToggleBonus(ScoreGame& g, uint8_t player) {
+  if (player >= g.players) return false;
+  g.bonus[player] = g.bonus[player] ? 0 : SCORE_BONUS_MAX;
+  return true;
 }
 
-void scoreSelectNext(ScoreGame& g) { g.selected = (uint8_t)((g.selected + 1) % SCORE_PLAYERS); }
+void scoreSelect(ScoreGame& g, uint8_t player) {
+  if (player < g.players) g.selected = player;
+}
 
-static void scoreSanitize(ScoreGame& g, uint8_t target) {
-  for (uint8_t i = 0; i < SCORE_PLAYERS; ++i)
-    if (g.score[i] > target) g.score[i] = target;
-  if (g.selected >= SCORE_PLAYERS) g.selected = 0;
+void scoreSelectNext(ScoreGame& g) { g.selected = (uint8_t)((g.selected + 1) % g.players); }
+
+// Anything loaded from flash: a game that makes sense (else `defaultTarget`).
+static void scoreSanitize(ScoreGame& g, uint8_t defaultTarget) {
+  g.players = clampScorePlayers(g.players);
+  g.teams = g.teams && g.players == 2;
+  if (g.target < 1 || g.target > SCORE_TARGET_MAX) g.target = defaultTarget;
+  for (uint8_t i = 0; i < SCORE_MAX_PLAYERS; ++i) {
+    if (g.score[i] > g.target) g.score[i] = g.target;
+    if (g.bonus[i] > SCORE_BONUS_MAX) g.bonus[i] = SCORE_BONUS_MAX;
+    if (i >= g.players) g.score[i] = g.bonus[i] = 0;
+  }
+  if (g.selected >= g.players) g.selected = 0;
 }
 
 void appStateSetDefaults(AppState& s) {
   s.screen = SCREEN_HOME;
   commanderNewGame(s.commander);
-  scoreNewGame(s.riftbound);
-  scoreNewGame(s.lorcana);
+  scoreNewGame(s.riftbound, 2, RIFTBOUND_TARGET);
+  scoreNewGame(s.lorcana, 2, LORCANA_TARGET);
 }
 
 void appStateSanitize(AppState& s) {
@@ -143,9 +168,11 @@ bool operator==(const CommanderGame& a, const CommanderGame& b) {
 }
 
 bool operator==(const ScoreGame& a, const ScoreGame& b) {
-  if (a.selected != b.selected) return false;
-  for (uint8_t i = 0; i < SCORE_PLAYERS; ++i)
-    if (a.score[i] != b.score[i]) return false;
+  if (a.players != b.players || a.teams != b.teams || a.target != b.target ||
+      a.selected != b.selected)
+    return false;
+  for (uint8_t i = 0; i < SCORE_MAX_PLAYERS; ++i)
+    if (a.score[i] != b.score[i] || a.bonus[i] != b.bonus[i]) return false;
   return true;
 }
 

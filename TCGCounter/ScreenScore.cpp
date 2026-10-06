@@ -1,26 +1,32 @@
 /* ============================================================================
- *  ScreenScore — two-player score race: RIFTBOUND (first to 8 points) and
- *  LORCANA (first to 20 lore). One module serves both; which game is shown
- *  follows g_state.screen.
+ *  ScreenScore — score race: RIFTBOUND (1v1 or 4 players to 8, 2v2 teams to
+ *  11) and LORCANA (2 or 4 players, 20 or 25 lore). One module serves both;
+ *  which game is shown follows g_state.screen. The game's format is chosen
+ *  in its menu (ScreenScoreSetup.cpp). Where the cards sit: ScoreLayout.h.
  *
- *  ┌──────────────────────────────────────┐
- *  │ ┌──┐                            ┌──┐ │  P1, upside down for the player
- *  │ │+ │          3 /8              │− │ │  across the table
- *  │ └──┘        PLAYER 1            └──┘ │
- *  ├────────────(≡)───(🎲)───(↻)───────────┤  ≡ menu · 🎲 dice · ↻ Restart
- *  │ ┌──┐        PLAYER 2            ┌──┐ │
- *  │ │− │          5 /8              │+ │ │  P2
- *  │ └──┘                            └──┘ │
- *  └──────────────────────────────────────┘
+ *  2 cards                                  4 cards
+ *  ┌──────────────────────────────────────┐ ┌─────────────┬─────────────┐
+ *  │ ┌──┐                            ┌──┐ │ │  PLAYER 2   ↻   PLAYER 1  │
+ *  │ │+ │    (+1)  3 /8              │− │ │ │   3 /8      │    5 /8     │
+ *  │ └──┘        PLAYER 1            └──┘ │ │  [−] [+]    │   [−] [+]   │
+ *  ├────────────(≡)───(🎲)───(↻)───────────┤ ├─────────────≡─────────────┤
+ *  │ ┌──┐        PLAYER 2            ┌──┐ │ │  PLAYER 3   │   PLAYER 4  │
+ *  │ │− │          5 /8  (+1)        │+ │ │ │   0 /8      🎲    6 /8     │
+ *  │ └──┘                            └──┘ │ │  [−] [+]    │   [−] [+]   │
+ *  └──────────────────────────────────────┘ └─────────────┴─────────────┘
+ *  Every card faces the player at its edge (top row upside down).
  *
  *  Touch:   tap/hold − / + = score (hold repeats) · tap a card = select it
- *           ≡ = menu: CONTINUE · HIGH ROLL (both cards show a D20 that spins
- *               and lands; the higher roll turns gold, a tie rolls again;
- *               tap to go back) · HOME
+ *           +1 (Riftbound) = plus life on / off: one extra point, at most
+ *               one per player (team), so a score can end one past the
+ *               target (9 /8)
+ *           ≡ = the game's menu: CONTINUE · HIGH ROLL · new game · HOME
  *           🎲 = Dice page: D4 / D6 / D8 / D12 / D20, REROLL, BACK to the game
- *           ↻ = Restart (asks first; both back to 0)
- *  Encoder: turn = selected player's score · press = other player
+ *           ↻ = Restart (asks first; everyone back to 0)
+ *  Encoder: turn = selected player's score · press = next player
  *           long-press = Restart (asks first)
+ *  High roll (≡ -> HIGH ROLL): every card shows a D20 that spins and lands;
+ *  the highest turns gold, a tie rolls again; tap to go back.
  *  Reaching the target turns the card gold: WINNER!  − still works, so a
  *  mis-tap can be taken back.
  * ==========================================================================*/
@@ -28,7 +34,7 @@
 #include "Screens.h"
 #include "App.h"
 #include "GameState.h"
-#include "CommanderLayout.h"
+#include "ScoreLayout.h"
 #include "TableDraw.h"
 #include "HighRoll.h"
 #include "Theme.h"
@@ -43,189 +49,150 @@ namespace {
 // ---------------------------------------------------------------- which game
 struct ScoreMode {
   Screen      screen;
-  uint8_t     target;
+  Screen      menu;   // ≡ goes here
   ScoreGame& (*game)();
-  const char* name;
+  bool        bonus;  // +1 plus life buttons (Riftbound)
 };
 ScoreGame& riftbound() { return g_state.riftbound; }
 ScoreGame& lorcana()   { return g_state.lorcana; }
 const ScoreMode MODES[] = {
-  {SCREEN_RIFTBOUND, RIFTBOUND_TARGET, riftbound, "RIFTBOUND"},
-  {SCREEN_LORCANA,   LORCANA_TARGET,   lorcana,   "LORCANA"},
+  {SCREEN_RIFTBOUND, SCREEN_RIFTBOUND_SETUP, riftbound, true},
+  {SCREEN_LORCANA,   SCREEN_LORCANA_SETUP,   lorcana,   false},
 };
 const ScoreMode& mode() { return g_state.screen == SCREEN_LORCANA ? MODES[1] : MODES[0]; }
+ScoreGame& game() { return mode().game(); }
+const TableLayout& table() { return scoreTable(game().players); }
 
-// ---------------------------------------------------------------- geometry
-// Same two seats as a 2-player Commander table: P1 top (facing the far
-// side), P2 bottom. Card coordinates as the player sees it: 320 x 119.
-const Seat& seat(uint8_t p) { return tableLayout(2).seats[p]; }
-
-constexpr int CARD_W = 320, CARD_H = 119;
 constexpr int FRAME_R = 10, FRAME_THICK = 4;
-constexpr Rect BTN_MINUS = {10, 10, 60, 99};   // tall buttons at the card's sides
-constexpr Rect BTN_PLUS  = {250, 10, 60, 99};
-constexpr int  MINUS_ZONE_END = 80, PLUS_ZONE_START = 240;  // touch zones (card columns)
-constexpr int  NUM_CX = 160, NUM_CY = 58;       // centre of the digits (rows 23..92)
-constexpr int  CAPTION_Y = 105;  // rows ~99..111, below the digits
-constexpr int  NUM_MAX_W = PLUS_ZONE_START - MINUS_ZONE_END - 4;
-
-// Centre buttons on the line between the cards. The card rows above the
-// digits (0..22) stay empty there, so the buttons never cover a number.
-constexpr int HUB_Y = 120;
-constexpr int MENU_X = 100, DICE_X = 160, RESTART_X = 220;
-constexpr int DIE_CY = 58, DIE_R = 34;   // high roll: D20 rows 24..92, clear of the buttons and the caption
-
-// ---------------------------------------------------------------- hit test
-enum class Zone : uint8_t { None, Area, Minus, Plus, Menu, Dice, Restart };
-struct Hit {
-  Zone    zone;
-  uint8_t player;
-};
-constexpr Hit NO_HIT = {Zone::None, 0};
-
-bool inHub(int x, int y, int hx) {
-  const int dx = x - hx, dy = y - HUB_Y;
-  return dx * dx + dy * dy <= HUB_HIT_R * HUB_HIT_R;
-}
-
-Hit hitTest(int x, int y) {
-  if (inHub(x, y, MENU_X)) return {Zone::Menu, 0};
-  if (inHub(x, y, DICE_X)) return {Zone::Dice, 0};
-  if (inHub(x, y, RESTART_X)) return {Zone::Restart, 0};
-  const uint8_t p = y >= HUB_Y ? 1 : 0;  // the 2 px gap belongs to the nearer card
-  int lx, ly;
-  seatToLocal(seat(p), x, y, lx, ly);
-  if (lx < MINUS_ZONE_END) return {Zone::Minus, p};
-  if (lx >= PLUS_ZONE_START) return {Zone::Plus, p};
-  return {Zone::Area, p};
-}
 
 // ---------------------------------------------------------------- UI-only state
-Hit           s_press = NO_HIT;
+ScoreHit      s_press = SCORE_NO_HIT;
 ConfirmDialog s_restart;
 HighRoll      s_roll;
 DiceOverlay   s_dice;
-
-// ≡ menu page: CONTINUE / HIGH ROLL / HOME (same look as the home menu)
-constexpr int8_t MENU_CONTINUE = 0, MENU_ROLL = 1, MENU_HOME = 2, MENU_ITEMS = 3;
-bool   s_menuOpen = false;
-int8_t s_menuFocus = MENU_CONTINUE, s_menuPressed = -1;
-int8_t s_drawnMenuFocus = -1, s_drawnMenuPressed = -1;
-
-Rect menuRect(int8_t i) { return Rect{16, (int16_t)(44 + i * 64), 288, 56}; }
+bool          s_rollOnEnter = false;  // the menu asked for a high roll
 
 uint8_t rollD20() { return (uint8_t)random(1, HIGHROLL_SIDES + 1); }  // hardware RNG on the ESP32
 
 struct CardView {
-  uint8_t score;
-  bool    won;
-  bool    highlight;
-  Zone    pressed;  // Minus / Plus / None
-  DieState die;     // high roll running: how this player's D20 looks
-  uint8_t  face;
+  uint8_t   total;      // score + plus life
+  bool      bonus;      // plus life taken
+  bool      won;
+  bool      highlight;
+  ScoreZone pressed;    // Minus / Plus / Bonus / None
+  DieState  die;        // high roll running: how this player's D20 looks
+  uint8_t   face;
   bool operator==(const CardView& o) const {
-    return score == o.score && won == o.won && highlight == o.highlight && pressed == o.pressed &&
-           die == o.die && face == o.face;
+    return total == o.total && bonus == o.bonus && won == o.won && highlight == o.highlight &&
+           pressed == o.pressed && die == o.die && face == o.face;
   }
   bool operator!=(const CardView& o) const { return !(*this == o); }
 };
 
-CardView s_drawn[SCORE_PLAYERS];
-Zone     s_drawnHubPressed = Zone::None;
-int8_t   s_drawnPage = 0;  // full-screen page on screen: 0 table, 1 question, 2 dice, 3 menu
+CardView s_drawn[SCORE_MAX_PLAYERS];
+int8_t   s_drawnHubPressed = -1;
+int8_t   s_drawnPage = 0;  // full-screen page on screen: 0 table, 1 question, 2 dice
 
 CardView viewOf(uint8_t p) {
-  const ScoreGame& g = mode().game();
+  const ScoreGame& g = game();
   CardView v;
-  v.score = g.score[p];
-  v.won = scoreHasWon(g, p, mode().target);
+  v.total = scoreTotal(g, p);
+  v.bonus = g.bonus[p] != 0;
+  v.won = scoreHasWon(g, p);
   v.highlight = (g.selected == p);
-  const bool onButton = s_press.zone == Zone::Minus || s_press.zone == Zone::Plus;
-  v.pressed = (onButton && s_press.player == p) ? s_press.zone : Zone::None;
+  const bool onCard = s_press.zone == ScoreZone::Minus || s_press.zone == ScoreZone::Plus ||
+                      s_press.zone == ScoreZone::Bonus;
+  v.pressed = (onCard && s_press.index == p) ? s_press.zone : ScoreZone::None;
   v.die = highRollDie(s_roll, p);
   v.face = v.die != DieState::None ? s_roll.value[p] : 0;
-  if (v.die != DieState::None) v.pressed = Zone::None;
+  if (v.die != DieState::None) v.pressed = ScoreZone::None;
   return v;
 }
 
 // ---------------------------------------------------------------- actions
-void adjust(uint8_t p, int delta) { scoreAdjust(mode().game(), p, delta, mode().target); }
-
 void askRestart() {
-  ScoreGame& g = mode().game();
-  if (scoreIsFresh(g)) {  // already 0 : 0 — nothing to lose, nothing to ask
-    scoreNewGame(g);
+  ScoreGame& g = game();
+  if (scoreIsFresh(g)) {  // already all at 0 — nothing to lose, nothing to ask
+    scoreRestart(g);
     return;
   }
   char body[40];
-  snprintf(body, sizeof(body), "Both players back to 0 / %u", (unsigned)mode().target);
+  const char* who = g.teams ? "Both teams" : (g.players == 2 ? "Both players" : "Everyone");
+  snprintf(body, sizeof(body), "%s back to 0 / %u", who, (unsigned)g.target);
   s_restart.open("RESTART?", body, "The current game will be lost.", "RESTART");
 }
 
-// ---------------------------------------------------------------- drawing
-struct CardJob { uint8_t p; const CardView* v; };
+void startHighRoll() { highRollStart(s_roll, game().players, millis(), rollD20); }
 
-void drawButton(lgfx::LovyanGFX& c, int ox, int oy, uint8_t p, Zone which, bool pressed) {
-  const Rect& r = which == Zone::Minus ? BTN_MINUS : BTN_PLUS;
+// ---------------------------------------------------------------- drawing a card
+struct CardJob { const ScoreGeom* g; uint8_t p; const CardView* v; };
+
+void nameText(uint8_t p, char* buf, size_t n) {
+  snprintf(buf, n, game().teams ? "TEAM %u" : "PLAYER %u", (unsigned)(p + 1));
+}
+
+void drawPanel(lgfx::LovyanGFX& c, int ox, int oy, const ScoreGeom& g, uint16_t fill,
+               bool thick, uint16_t frame) {
+  c.fillRect(ox, oy, g.w, g.h, theme::BG);
+  c.fillRoundRect(ox, oy, g.w, g.h, FRAME_R, fill);
+  uiRoundFrame(c, ox, oy, g.w, g.h, FRAME_R, thick ? FRAME_THICK : 1, frame);
+}
+
+void drawButton(lgfx::LovyanGFX& c, int ox, int oy, const ScoreGeom& g, uint8_t p, ScoreZone which,
+                bool pressed) {
+  const Rect& r = which == ScoreZone::Minus ? g.minus : g.plus;
+  const Rect b = {(int16_t)(ox + r.x), (int16_t)(oy + r.y), r.w, r.h};
   const uint16_t fill = pressed ? theme::PLAYER[p] : theme::BUTTON;
   const uint16_t sym  = pressed ? theme::TEXT_ON_ACCENT : theme::TEXT;
-  c.fillRoundRect(ox + r.x, oy + r.y, r.w, r.h, 8, fill);
-  if (which == Zone::Minus) uiMinus(c, ox + r.cx(), oy + r.cy(), 26, 5, sym);
-  else                      uiPlus(c, ox + r.cx(), oy + r.cy(), 26, 5, sym);
+  const bool big = g.wide;
+  c.fillRoundRect(b.x, b.y, b.w, b.h, 8, fill);
+  if (which == ScoreZone::Minus) uiMinus(c, b.cx(), b.cy(), big ? 26 : 18, big ? 5 : 4, sym);
+  else                           uiPlus(c, b.cx(), b.cy(), big ? 26 : 18, big ? 5 : 4, sym);
 }
 
-// High roll: the D20 replaces the score and the − / + buttons.
-void paintRoll(lgfx::LovyanGFX& c, int ox, int oy, uint8_t p, const CardView& v) {
-  const bool won = v.die == DieState::Winner;
-  c.fillRect(ox, oy, CARD_W, CARD_H, theme::BG);
-  c.fillRoundRect(ox, oy, CARD_W, CARD_H, FRAME_R, won ? theme::WIN_PANEL : theme::PANEL);
-  if (won) uiRoundFrame(c, ox, oy, CARD_W, CARD_H, FRAME_R, FRAME_THICK, theme::ACCENT);
-  else     uiRoundFrame(c, ox, oy, CARD_W, CARD_H, FRAME_R, 1, theme::PANEL_EDGE);
-  drawD20(c, ox + NUM_CX, oy + DIE_CY, DIE_R, v.die, theme::PLAYER[p], v.face);
-  char cap[12];
-  c.setTextDatum(lgfx::textdatum_t::middle_center);
+// +1 plus life: gold once taken.
+void drawBonus(lgfx::LovyanGFX& c, int ox, int oy, const ScoreGeom& g, const CardView& v) {
+  const Rect b = {(int16_t)(ox + g.bonus.x), (int16_t)(oy + g.bonus.y), g.bonus.w, g.bonus.h};
+  const bool pressed = v.pressed == ScoreZone::Bonus;
+  uint16_t fill = theme::BUTTON, text = theme::TEXT;
+  if (v.bonus) { fill = theme::ACCENT; text = theme::TEXT_ON_ACCENT; }
+  if (pressed) { fill = theme::BUTTON_DOWN; text = theme::TEXT; }
+  c.fillRoundRect(b.x, b.y, b.w, b.h, b.h / 2, fill);
+  // pixel-drawn "+" (the font's one sits too high and small), then "1"
+  uiPlus(c, b.cx() - 6, b.cy(), 9, 3, text);
   c.setFont(theme::fontLabel());
-  if (won) {
-    snprintf(cap, sizeof(cap), "HIGH ROLL!");
-    c.setTextColor(theme::ACCENT);
-  } else if (v.die == DieState::Tied) {
-    snprintf(cap, sizeof(cap), "TIE!");
-    c.setTextColor(theme::ACCENT);
-  } else {
-    snprintf(cap, sizeof(cap), "PLAYER %u", (unsigned)(p + 1));
-    c.setTextColor(theme::PLAYER[p]);
-  }
-  c.drawString(cap, ox + NUM_CX, oy + CAPTION_Y);
+  c.setTextDatum(lgfx::textdatum_t::middle_center);
+  c.setTextColor(text);
+  c.drawString("1", b.cx() + 6, b.cy() + 1);
 }
 
-void paintCard(lgfx::LovyanGFX& c, int ox, int oy, const void* ctx) {
-  const CardJob& j = *static_cast<const CardJob*>(ctx);
-  const CardView& v = *j.v;
-  const uint8_t p = j.p;
-  if (v.die != DieState::None) { paintRoll(c, ox, oy, p, v); return; }
-
-  c.fillRect(ox, oy, CARD_W, CARD_H, theme::BG);
-  c.fillRoundRect(ox, oy, CARD_W, CARD_H, FRAME_R, v.won ? theme::WIN_PANEL : theme::PANEL);
-  if (v.highlight) uiRoundFrame(c, ox, oy, CARD_W, CARD_H, FRAME_R, FRAME_THICK, theme::PLAYER[p]);
-  else             uiRoundFrame(c, ox, oy, CARD_W, CARD_H, FRAME_R, 1, theme::PANEL_EDGE);
-  drawButton(c, ox, oy, p, Zone::Minus, v.pressed == Zone::Minus);
-  drawButton(c, ox, oy, p, Zone::Plus,  v.pressed == Zone::Plus);
-
-  // "5 /8": big digits, then the target sitting on their baseline
+// "5 /8": the score's digits, then the target sitting on their baseline.
+void drawScore(lgfx::LovyanGFX& c, int ox, int oy, const ScoreGeom& g, const CardView& v) {
   char num[4], target[6];
-  snprintf(num, sizeof(num), "%u", (unsigned)v.score);
-  snprintf(target, sizeof(target), "/%u", (unsigned)mode().target);
+  snprintf(num, sizeof(num), "%u", (unsigned)v.total);
+  snprintf(target, sizeof(target), "/%u", (unsigned)game().target);
   uint8_t fontCount = 0;
-  const theme::NumberFont& f = theme::numberFonts(fontCount)[0];  // the big one (Font8)
-  c.setFont(f.font);
-  const int numW = c.textWidth(num) + (theme::LIFE_FAUX_BOLD ? 1 : 0);
+  const theme::NumberFont* fonts = theme::numberFonts(fontCount);
+  // biggest digits whose height fits, then the target in the bigger text font if it fits
+  const theme::NumberFont* f = &fonts[fontCount - 1];
+  for (uint8_t k = 0; k < fontCount; ++k)
+    if (fonts[k].height <= g.numMaxH) { f = &fonts[k]; break; }
+  int numW = 0;
   const lgfx::IFont* tf = theme::fontButton();
+  for (uint8_t k = (uint8_t)(f - fonts); k < fontCount; ++k) {
+    f = &fonts[k];
+    c.setFont(f->font);
+    numW = c.textWidth(num) + (theme::LIFE_FAUX_BOLD ? 1 : 0);
+    tf = theme::fontButton();
+    c.setFont(tf);
+    if (numW + 6 + c.textWidth(target) > g.numMaxW) { tf = theme::fontSmall(); c.setFont(tf); }
+    if (numW + 6 + c.textWidth(target) <= g.numMaxW) break;
+  }
   c.setFont(tf);
-  if (numW + 6 + c.textWidth(target) > NUM_MAX_W) { tf = theme::fontSmall(); c.setFont(tf); }
-  const int left = NUM_CX - (numW + 6 + c.textWidth(target)) / 2;
+  const int left = g.numCx - (numW + 6 + c.textWidth(target)) / 2;
   const uint16_t numCol = v.won ? theme::ACCENT : theme::TEXT;
-  const int y = NUM_CY - f.top - f.height / 2;
-  c.setFont(f.font);
+  const int y = g.numCy - f->top - f->height / 2;
+  c.setFont(f->font);
   c.setTextDatum(lgfx::textdatum_t::top_left);
   c.setTextColor(numCol);
   c.drawString(num, ox + left, oy + y);
@@ -233,106 +200,93 @@ void paintCard(lgfx::LovyanGFX& c, int ox, int oy, const void* ctx) {
   c.setFont(tf);
   c.setTextDatum(lgfx::textdatum_t::baseline_left);
   c.setTextColor(v.won ? theme::ACCENT : theme::TEXT_DIM);
-  c.drawString(target, ox + left + numW + 6, oy + NUM_CY + f.height / 2);
+  c.drawString(target, ox + left + numW + 6, oy + g.numCy + f->height / 2);
+}
 
-  // caption: who this is, or that they won
-  char cap[12];
+// Compact cards: name pill at the top ("WINNER!" once won).
+void drawLabel(lgfx::LovyanGFX& c, int ox, int oy, const ScoreGeom& g, uint8_t p, const char* text,
+               bool filled, uint16_t textCol) {
+  const Rect r = {(int16_t)(ox + g.label.x), (int16_t)(oy + g.label.y), g.label.w, g.label.h};
+  if (filled) c.fillRoundRect(r.x, r.y, r.w, r.h, r.h / 2, theme::PLAYER[p]);
+  c.setFont(theme::fontLabel());
+  c.setTextDatum(lgfx::textdatum_t::middle_center);
+  c.setTextColor(filled ? theme::TEXT_ON_ACCENT : textCol);
+  c.drawString(text, r.cx(), r.cy() + 1);
+}
+
+// High roll: the D20 replaces the score and the buttons.
+void paintRoll(lgfx::LovyanGFX& c, int ox, int oy, const ScoreGeom& g, uint8_t p, const CardView& v) {
+  const bool won = v.die == DieState::Winner;
+  drawPanel(c, ox, oy, g, won ? theme::WIN_PANEL : theme::PANEL, won,
+            won ? theme::ACCENT : theme::PANEL_EDGE);
+  drawD20(c, ox + g.dieCx, oy + g.dieCy, g.dieR, v.die, theme::PLAYER[p], v.face);
+  char name[12];
+  nameText(p, name, sizeof(name));
+  if (!g.wide) {  // name pill, filled in the player's colour for the winner
+    drawLabel(c, ox, oy, g, p, name, won, theme::PLAYER[p]);
+    return;
+  }
+  const char* cap = name;
+  uint16_t col = theme::PLAYER[p];
+  if (won) { cap = "HIGH ROLL!"; col = theme::ACCENT; }
+  else if (v.die == DieState::Tied) { cap = "TIE!"; col = theme::ACCENT; }
   c.setTextDatum(lgfx::textdatum_t::middle_center);
   c.setFont(theme::fontLabel());
-  if (v.won) {
-    snprintf(cap, sizeof(cap), "WINNER!");
-    c.setTextColor(theme::ACCENT);
+  c.setTextColor(col);
+  c.drawString(cap, ox + g.dieCx, oy + g.capY);
+}
+
+void paintCard(lgfx::LovyanGFX& c, int ox, int oy, const void* ctx) {
+  const CardJob& j = *static_cast<const CardJob*>(ctx);
+  const ScoreGeom& g = *j.g;
+  const CardView& v = *j.v;
+  const uint8_t p = j.p;
+  if (v.die != DieState::None) { paintRoll(c, ox, oy, g, p, v); return; }
+
+  drawPanel(c, ox, oy, g, v.won ? theme::WIN_PANEL : theme::PANEL, v.highlight,
+            v.highlight ? theme::PLAYER[p] : theme::PANEL_EDGE);
+  drawButton(c, ox, oy, g, p, ScoreZone::Minus, v.pressed == ScoreZone::Minus);
+  drawButton(c, ox, oy, g, p, ScoreZone::Plus,  v.pressed == ScoreZone::Plus);
+  drawScore(c, ox, oy, g, v);
+
+  char name[12];
+  nameText(p, name, sizeof(name));
+  if (g.wide) {  // caption under the score: who this is, or that they won
+    c.setTextDatum(lgfx::textdatum_t::middle_center);
+    c.setFont(theme::fontLabel());
+    c.setTextColor(v.won ? theme::ACCENT : theme::PLAYER[p]);
+    c.drawString(v.won ? "WINNER!" : name, ox + g.capX, oy + g.capY);
   } else {
-    snprintf(cap, sizeof(cap), "PLAYER %u", (unsigned)(p + 1));
-    c.setTextColor(theme::PLAYER[p]);
+    drawLabel(c, ox, oy, g, p, v.won ? "WINNER!" : name, v.highlight,
+              v.won ? theme::ACCENT : theme::PLAYER[p]);
   }
-  c.drawString(cap, ox + NUM_CX, oy + CAPTION_Y);
+  if (g.bonus.w > 0) drawBonus(c, ox, oy, g, v);
 }
 
 void drawCard(uint8_t p, const CardView& v) {
-  const CardJob job = {p, &v};
-  drawSeatCard(seat(p), paintCard, &job);
+  const Seat& s = table().seats[p];
+  const ScoreGeom g = scoreGeom(s, mode().bonus);
+  const CardJob job = {&g, p, &v};
+  drawSeatCard(s, paintCard, &job);  // off-screen, turned to face the player, one copy
 }
 
-void drawHubs(Zone pressed) {
-  drawHubButton(MENU_X, HUB_Y, HubIcon::Menu, pressed == Zone::Menu);
-  drawHubButton(DICE_X, HUB_Y, HubIcon::Dice, pressed == Zone::Dice);
-  drawHubButton(RESTART_X, HUB_Y, HubIcon::Restart, pressed == Zone::Restart);
-}
-
-// ---- ≡ menu page
-void drawMenuItem(int8_t i) {
-  auto& g = gfx();
-  const Rect r = menuRect(i);
-  const uint16_t fill = (i == s_menuPressed) ? theme::BUTTON_DOWN : theme::BUTTON;
-  g.fillRect(r.x, r.y, r.w, r.h, theme::BG);
-  g.fillRoundRect(r.x, r.y, r.w, r.h, 12, fill);
-  if (i == s_menuFocus) uiRoundFrame(g, r.x, r.y, r.w, r.h, 12, 3, theme::ACCENT);
-  static const char* const LABELS[MENU_ITEMS] = {"CONTINUE", "HIGH ROLL", "HOME"};
-  g.setFont(theme::fontTitle());
-  g.setTextDatum(lgfx::textdatum_t::middle_left);
-  g.setTextColor(theme::TEXT);
-  g.drawString(LABELS[i], r.x + 18, r.cy() + 1);
-  uiChevron(g, r.x + r.w - 20, r.cy(), 18, 4, true, theme::TEXT_DIM);
-}
-
-void drawMenuPage() {
-  auto& g = gfx();
-  g.fillScreen(theme::BG);
-  g.setFont(theme::fontButton());
-  g.setTextDatum(lgfx::textdatum_t::middle_left);
-  g.setTextColor(theme::TEXT_DIM);
-  g.drawString(mode().name, 20, 22);
-  for (int8_t i = 0; i < MENU_ITEMS; ++i) drawMenuItem(i);
-}
-
-void startHighRoll() { highRollStart(s_roll, SCORE_PLAYERS, millis(), rollD20); }
-
-void chooseMenu(int8_t i) {
-  s_menuOpen = false;
-  if (i == MENU_ROLL) startHighRoll();
-  else if (i == MENU_HOME) goToScreen(SCREEN_HOME);
-}
-
-void handleMenuInput(const InputEvent& e) {
-  switch (e.type) {
-    case InputType::EncoderTurn: {
-      int f = (s_menuFocus + e.delta) % MENU_ITEMS;
-      if (f < 0) f += MENU_ITEMS;
-      s_menuFocus = (int8_t)f;
-      break;
-    }
-    case InputType::EncoderClick:     chooseMenu(s_menuFocus); break;
-    case InputType::EncoderLongPress: s_menuOpen = false; break;  // = CONTINUE
-    case InputType::TouchDown:
-      s_menuPressed = -1;
-      for (int8_t i = 0; i < MENU_ITEMS; ++i)
-        if (menuRect(i).contains(e.x, e.y)) s_menuPressed = i;
-      if (s_menuPressed >= 0) s_menuFocus = s_menuPressed;
-      break;
-    case InputType::TouchUp: {
-      const int8_t released = s_menuPressed;
-      s_menuPressed = -1;
-      if (released >= 0 && isTap(e, TOUCH_TAP_MAX_MS)) chooseMenu(released);
-      break;
-    }
-    default: break;
+void drawHubs(int8_t pressed) {
+  const TableLayout& L = table();
+  for (uint8_t k = 0; k < L.hubCount; ++k) {
+    const HubPos& h = L.hubs[k];
+    const HubIcon icon = h.kind == HubKind::Menu ? HubIcon::Menu
+                       : h.kind == HubKind::Dice ? HubIcon::Dice : HubIcon::Restart;
+    drawHubButton(h.x, h.y, icon, pressed == (int8_t)k);
   }
-}
-
-void openMenu() {
-  s_menuOpen = true;
-  s_menuFocus = MENU_CONTINUE;
-  s_menuPressed = -1;
 }
 
 // While a high roll is on screen: nothing works until the dice land; then
 // the first touch or encoder action only goes back to the scores.
 void handleRollInput(const InputEvent& e) {
-  if (highRollBusy(s_roll)) { s_press = NO_HIT; return; }
+  if (highRollBusy(s_roll)) { s_press = SCORE_NO_HIT; return; }
   switch (e.type) {
     case InputType::TouchDown:
-      s_press = NO_HIT;
+      s_press = SCORE_NO_HIT;
       highRollStop(s_roll);  // this touch is used up: it only closes the result
       break;
     case InputType::EncoderTurn:
@@ -345,27 +299,37 @@ void handleRollInput(const InputEvent& e) {
   }
 }
 
+void tapHub(uint8_t k) {
+  switch (table().hubs[k].kind) {
+    case HubKind::Menu:    goToScreen(mode().menu); break;
+    case HubKind::Dice:    s_dice.open(); break;
+    case HubKind::Restart: askRestart(); break;
+  }
+}
+
 // ---------------------------------------------------------------- module functions
 void onEnter() {
-  s_press = NO_HIT;
+  s_press = SCORE_NO_HIT;
   s_restart.close();
   s_dice.close();
-  s_menuOpen = false;
   highRollStop(s_roll);
+  if (s_rollOnEnter) {
+    s_rollOnEnter = false;
+    startHighRoll();
+  }
 }
 
 void handleInput(const InputEvent& e) {
-  if (s_menuOpen) { handleMenuInput(e); return; }
   if (s_dice.isOpen()) { s_dice.handleInput(e); return; }  // BACK closes it: the table repaints
   if (highRollActive(s_roll)) { handleRollInput(e); return; }
   if (s_restart.isOpen()) {
-    if (s_restart.handleInput(e) == ConfirmResult::Confirm) scoreNewGame(mode().game());
+    if (s_restart.handleInput(e) == ConfirmResult::Confirm) scoreRestart(game());
     return;
   }
-  ScoreGame& g = mode().game();
+  ScoreGame& g = game();
   switch (e.type) {
     case InputType::EncoderTurn:
-      adjust(g.selected, e.delta);
+      scoreAdjust(g, g.selected, e.delta);
       break;
     case InputType::EncoderClick:
       scoreSelectNext(g);
@@ -374,23 +338,22 @@ void handleInput(const InputEvent& e) {
       askRestart();
       break;
     case InputType::TouchDown:
-      s_press = hitTest(e.x, e.y);
-      if (s_press.zone == Zone::Area || s_press.zone == Zone::Minus || s_press.zone == Zone::Plus)
-        scoreSelect(g, s_press.player);
-      if (s_press.zone == Zone::Minus) adjust(s_press.player, -1);
-      if (s_press.zone == Zone::Plus)  adjust(s_press.player, +1);
+      s_press = scoreHitTest(g.players, mode().bonus, e.x, e.y);
+      if (s_press.zone != ScoreZone::None && s_press.zone != ScoreZone::Hub)
+        scoreSelect(g, s_press.index);
+      if (s_press.zone == ScoreZone::Minus) scoreAdjust(g, s_press.index, -1);
+      if (s_press.zone == ScoreZone::Plus)  scoreAdjust(g, s_press.index, +1);
       break;
     case InputType::TouchRepeat:  // hold-to-repeat on − / +
-      if (s_press.zone == Zone::Minus) adjust(s_press.player, -1);
-      if (s_press.zone == Zone::Plus)  adjust(s_press.player, +1);
+      if (s_press.zone == ScoreZone::Minus) scoreAdjust(g, s_press.index, -1);
+      if (s_press.zone == ScoreZone::Plus)  scoreAdjust(g, s_press.index, +1);
       break;
     case InputType::TouchUp: {
-      const Hit released = s_press;
-      s_press = NO_HIT;
+      const ScoreHit released = s_press;
+      s_press = SCORE_NO_HIT;
       if (!isTap(e, TOUCH_TAP_MAX_MS)) break;
-      if (released.zone == Zone::Menu) openMenu();
-      else if (released.zone == Zone::Dice) s_dice.open();
-      else if (released.zone == Zone::Restart) askRestart();
+      if (released.zone == ScoreZone::Hub) tapHub(released.index);
+      else if (released.zone == ScoreZone::Bonus) scoreToggleBonus(g, released.index);
       break;
     }
     default:
@@ -399,35 +362,15 @@ void handleInput(const InputEvent& e) {
 }
 
 void render(bool full) {
-  const int8_t page = s_menuOpen ? 3 : s_dice.isOpen() ? 2 : s_restart.isOpen() ? 1 : 0;
+  const int8_t page = s_dice.isOpen() ? 2 : s_restart.isOpen() ? 1 : 0;
   const bool pageChanged = page != s_drawnPage;
   s_drawnPage = page;
   if (page == 1) { s_restart.render(full || pageChanged); return; }
   if (page == 2) { s_dice.render(full || pageChanged); return; }
-  if (page == 3) {
-    if (full || pageChanged) {
-      gfx().startWrite();
-      drawMenuPage();
-      gfx().endWrite();
-    } else if (s_menuFocus != s_drawnMenuFocus || s_menuPressed != s_drawnMenuPressed) {
-      gfx().startWrite();
-      for (int8_t i = 0; i < MENU_ITEMS; ++i) {
-        const bool was = (i == s_drawnMenuFocus || i == s_drawnMenuPressed);
-        const bool is  = (i == s_menuFocus || i == s_menuPressed);
-        if (was || is) drawMenuItem(i);
-      }
-      gfx().endWrite();
-    }
-    s_drawnMenuFocus = s_menuFocus;
-    s_drawnMenuPressed = s_menuPressed;
-    return;
-  }
   full = full || pageChanged;  // back from a page: repaint the table
 
   auto& g = gfx();
-  const bool onHub = s_press.zone == Zone::Menu || s_press.zone == Zone::Dice ||
-                     s_press.zone == Zone::Restart;
-  const Zone hubPressed = onHub ? s_press.zone : Zone::None;
+  const int8_t hubPressed = s_press.zone == ScoreZone::Hub ? (int8_t)s_press.index : -1;
   bool hubDirty = full || hubPressed != s_drawnHubPressed;
   bool started = false;
   if (full) {
@@ -435,13 +378,13 @@ void render(bool full) {
     started = true;
     g.fillScreen(theme::BG);
   }
-  for (uint8_t p = 0; p < SCORE_PLAYERS; ++p) {
+  for (uint8_t p = 0; p < game().players; ++p) {
     const CardView v = viewOf(p);
     if (!full && v == s_drawn[p]) continue;
     if (!started) { g.startWrite(); started = true; }
     drawCard(p, v);
     s_drawn[p] = v;
-    hubDirty = true;  // the card edges lie under the centre buttons
+    hubDirty = true;  // the card edges lie under the round buttons
   }
   if (hubDirty) {
     if (!started) { g.startWrite(); started = true; }
@@ -460,3 +403,5 @@ void tick(uint32_t now) {
 
 const ScreenModule RiftboundScreen = {"Riftbound", onEnter, handleInput, render, tick};
 const ScreenModule LorcanaScreen   = {"Lorcana", onEnter, handleInput, render, tick};
+
+void scoreRequestHighRoll() { s_rollOnEnter = true; }

@@ -168,17 +168,28 @@ bool clearOfHubs(const TableLayout& L, const Seat& s, const Rect& local) {
   return true;
 }
 
-Hit commanderHitTest(uint8_t players, int x, int y) {
-  const TableLayout& L = tableLayout(players);
+int8_t tableHubAt(const TableLayout& L, int x, int y) {
   for (uint8_t k = 0; k < L.hubCount; ++k) {
     const int dx = x - L.hubs[k].x, dy = y - L.hubs[k].y;
-    if (dx * dx + dy * dy <= HUB_HIT_R * HUB_HIT_R) return {Zone::Hub, k};
+    if (dx * dx + dy * dy <= HUB_HIT_R * HUB_HIT_R) return (int8_t)k;
   }
+  return -1;
+}
+
+int8_t tableSeatAt(const TableLayout& L, int x, int y) {
   int best = -1, bestD = GAP_SLACK + 1;
   for (uint8_t i = 0; i < L.players; ++i) {
     const int d = distToRect(L.seats[i].r, x, y);
     if (d < bestD) { bestD = d; best = i; }
   }
+  return (int8_t)best;
+}
+
+Hit commanderHitTest(uint8_t players, int x, int y) {
+  const TableLayout& L = tableLayout(players);
+  const int8_t hub = tableHubAt(L, x, y);
+  if (hub >= 0) return {Zone::Hub, (uint8_t)hub};
+  const int8_t best = tableSeatAt(L, x, y);
   if (best < 0) return NO_HIT;  // empty seat / outside every card
   const Seat& s = L.seats[best];
   int lx, ly;

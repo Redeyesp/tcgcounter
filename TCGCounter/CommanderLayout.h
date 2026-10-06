@@ -53,10 +53,10 @@ struct Seat {
   Side side;  // which way the card faces
 };
 
-enum class HubKind : uint8_t { Menu, Dice };
+enum class HubKind : uint8_t { Menu, Dice, Restart };
 struct HubPos { int16_t x, y; HubKind kind; };  // round buttons, screen coordinates
 
-constexpr uint8_t MAX_HUBS = 2;
+constexpr uint8_t MAX_HUBS = 3;  // Commander uses 2, Riftbound / Lorcana 3 (ScoreLayout.h)
 constexpr int HUB_R = 19;      // drawn radius
 constexpr int HUB_MOAT = 3;    // dark ring around it, separates it from the cards
 constexpr int HUB_HIT_R = 22;  // touch radius
@@ -102,6 +102,12 @@ inline CardGeom cardGeom(const Seat& s) { return cardGeom(seatLocalW(s), seatLoc
 bool clearOfHubs(const TableLayout& L, const Seat& s, const Rect& local);
 
 // ---- Touch hit-testing
+// Round button under (x, y), or -1.
+int8_t tableHubAt(const TableLayout& L, int x, int y);
+// Card under (x, y): the thin gaps between cards belong to the nearest card;
+// -1 outside every card (the empty seat of the 3-player layout).
+int8_t tableSeatAt(const TableLayout& L, int x, int y);
+
 enum class Zone : uint8_t { None, Area, Minus, Plus, Hub };
 struct Hit {
   Zone    zone;

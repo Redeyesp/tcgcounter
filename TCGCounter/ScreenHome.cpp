@@ -23,8 +23,8 @@ struct MenuItem {
 // (then re-space ITEM_Y / ITEM_H so the list still fits 240 px).
 const MenuItem ITEMS[] = {
   {"COMMANDER", SCREEN_COMMANDER_SETUP, true},  // menu first: players / continue / new game
-  {"RIFTBOUND", SCREEN_RIFTBOUND,       true},  // 2 players, first to 8
-  {"LORCANA",   SCREEN_LORCANA,         true},  // 2 players, first to 20 lore
+  {"RIFTBOUND", SCREEN_RIFTBOUND_SETUP, true},  // menu first: 1v1 / 4 players / 2v2
+  {"LORCANA",   SCREEN_LORCANA_SETUP,   true},  // menu first: 2 or 4 players, 20 or 25 lore
   {"DICE",      SCREEN_DICE,            true},  // D4..D20 on their own
 };
 constexpr int8_t ITEM_COUNT = sizeof(ITEMS) / sizeof(ITEMS[0]);

@@ -27,6 +27,9 @@ extern const ScreenModule HomeScreen;       // ScreenHome.cpp
 extern const ScreenModule CommanderScreen;  // ScreenCommander.cpp
 extern const ScreenModule CommanderSetupScreen;  // ScreenCommanderSetup.cpp (players / new game)
 void commanderRequestHighRoll();  // ScreenCommander.cpp: start a high roll when the table opens next
-extern const ScreenModule RiftboundScreen;  // ScreenScore.cpp (first to 8)
-extern const ScreenModule LorcanaScreen;    // ScreenScore.cpp (first to 20 lore)
+extern const ScreenModule RiftboundScreen;  // ScreenScore.cpp (2 or 4 players / 2v2, to 8 or 11)
+extern const ScreenModule LorcanaScreen;    // ScreenScore.cpp (2 or 4 players, 20 or 25 lore)
+extern const ScreenModule RiftboundSetupScreen;  // ScreenScoreSetup.cpp (continue / format / new game)
+extern const ScreenModule LorcanaSetupScreen;    // ScreenScoreSetup.cpp
+void scoreRequestHighRoll();  // ScreenScore.cpp: start a high roll when the table opens next
 extern const ScreenModule DiceScreen;       // ScreenDice.cpp (Home -> DICE)

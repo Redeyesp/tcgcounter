@@ -17,6 +17,8 @@ enum Screen : uint8_t {
   SCREEN_RIFTBOUND = 3,
   SCREEN_COMMANDER_SETUP = 4,  // player count / continue / new game (v0.4+)
   SCREEN_LORCANA   = 5,        // v0.5+
+  SCREEN_RIFTBOUND_SETUP = 6,  // Riftbound menu: continue / 1v1, 4-player, 2v2 (v0.9+)
+  SCREEN_LORCANA_SETUP   = 7,  // Lorcana menu: continue / 2 or 4 players, 20 or 25 lore (v0.9+)
   SCREEN_COUNT
 };
 
@@ -47,14 +49,25 @@ struct CommanderGame {
 
 enum class OutReason : uint8_t { None, Life, CommanderDamage };
 
-// ---- Score race for two players (Riftbound, Lorcana): first to the target wins.
-constexpr uint8_t SCORE_PLAYERS    = 2;
-constexpr uint8_t RIFTBOUND_TARGET = 8;   // victory points
-constexpr uint8_t LORCANA_TARGET   = 20;  // lore
+// ---- Score race (Riftbound, Lorcana): first to the target wins.
+// 2 or 4 cards on the table; in Riftbound 2v2 the two cards are the teams.
+constexpr uint8_t SCORE_MAX_PLAYERS      = 4;
+constexpr uint8_t RIFTBOUND_TARGET       = 8;   // victory points: 1v1 and 4-player free-for-all
+constexpr uint8_t RIFTBOUND_TEAM_TARGET  = 11;  // 2v2: points per team
+constexpr uint8_t LORCANA_TARGET         = 20;  // lore
+constexpr uint8_t LORCANA_LONG_TARGET    = 25;  // lore, longer (multiplayer) game
+constexpr uint8_t SCORE_TARGET_MAX       = 99;
+// Riftbound "plus life": the +1 on a card. At most one per player (team),
+// counted in the score, so a score can end up one past the target (9 / 8).
+constexpr uint8_t SCORE_BONUS_MAX        = 1;
 
 struct ScoreGame {
-  uint8_t score[SCORE_PLAYERS];  // 0..target
-  uint8_t selected;              // 0 = P1, 1 = P2 (encoder target)
+  uint8_t players;                    // cards: 2 or 4
+  bool    teams;                      // the 2 cards are teams (Riftbound 2v2)
+  uint8_t target;                     // score that wins
+  uint8_t score[SCORE_MAX_PLAYERS];   // 0..target, from − / +
+  uint8_t bonus[SCORE_MAX_PLAYERS];   // 0..SCORE_BONUS_MAX, the +1 on top of the score
+  uint8_t selected;                   // 0..players-1 (encoder target)
 };
 
 /* FUTURE: add game data for new modes here (e.g. struct DiceState), add a
@@ -63,8 +76,8 @@ struct ScoreGame {
 struct AppState {
   Screen        screen;
   CommanderGame commander;
-  ScoreGame     riftbound;  // target RIFTBOUND_TARGET
-  ScoreGame     lorcana;    // target LORCANA_TARGET
+  ScoreGame     riftbound;
+  ScoreGame     lorcana;
 };
 
 extern AppState g_state;  // the single live copy of all persistent state
@@ -105,11 +118,18 @@ inline bool commanderIsOut(const CommanderGame& g, uint8_t player) {
 }
 
 // ---- Score race rules (Riftbound, Lorcana) ----
-void scoreNewGame(ScoreGame& g);                // both at 0, P1 selected
-bool scoreIsFresh(const ScoreGame& g);          // both at 0: a restart would lose nothing
-bool scoreAdjust(ScoreGame& g, uint8_t player, int delta, uint8_t target);  // clamps 0..target
+// New game: `players` cards (2 or 4; anything else -> 2), first to `target`
+// (1..SCORE_TARGET_MAX), `teams` only with 2 cards. Everyone at 0, P1 selected.
+void scoreNewGame(ScoreGame& g, uint8_t players, uint8_t target, bool teams = false);
+void scoreRestart(ScoreGame& g);                // same game again: everyone back to 0
+bool scoreIsFresh(const ScoreGame& g);          // all at 0: a restart would lose nothing
+bool scoreAdjust(ScoreGame& g, uint8_t player, int delta);  // the − / + part, clamps 0..target
+bool scoreToggleBonus(ScoreGame& g, uint8_t player);        // +1 on / off
 void scoreSelect(ScoreGame& g, uint8_t player);
-void scoreSelectNext(ScoreGame& g);             // P1 <-> P2
-inline bool scoreHasWon(const ScoreGame& g, uint8_t player, uint8_t target) {
-  return player < SCORE_PLAYERS && g.score[player] >= target;
+void scoreSelectNext(ScoreGame& g);             // P1 -> P2 -> ... -> P1
+inline uint8_t scoreTotal(const ScoreGame& g, uint8_t player) {  // what the card shows
+  return player < SCORE_MAX_PLAYERS ? (uint8_t)(g.score[player] + g.bonus[player]) : 0;
+}
+inline bool scoreHasWon(const ScoreGame& g, uint8_t player) {
+  return player < g.players && scoreTotal(g, player) >= g.target;
 }

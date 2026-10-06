@@ -6,8 +6,9 @@ A tabletop counter with three games on the home menu:
 
 * **COMMANDER** — 2 to 6 players with a table layout for each count (every card faces its
   player), Lotus-style commander damage, *YOU ARE OUT*;
-* **RIFTBOUND** — 2 players, first to **8** points;
-* **LORCANA** — 2 players, first to **20** lore;
+* **RIFTBOUND** — 1v1 or 4 players free-for-all, first to **8** points, or **2v2** teams to
+  **11**; every card has a **+1** "plus life" button (one extra point each);
+* **LORCANA** — 2 or 4 players, first to **20** or **25** lore;
 
 plus **High Roll** in every game's **≡** menu to decide who goes first, and a **Dice** page
 (D4 / D6 / D8 / D12 / D20) behind the round **🎲** button on every game table and as **DICE**
@@ -22,10 +23,10 @@ the screens are rendered off-screen from the real drawing code to check the layo
 the USB-C (ST7789) board.
 
 ![UI preview](docs/ui_preview.png)
-*Rendered from the actual screen code at 2× scale (320×240 panel). Top: home menu (with
-DICE), Riftbound (round buttons ≡ 🎲 ↻), Riftbound's ≡ menu. Bottom: the Commander menu with
-HIGH ROLL, a 4-player Commander high roll after a tie was rolled off (≡ and 🎲 in the
-middle), a D20 landed in the roll popup.*
+*Rendered from the actual screen code at 2× scale (320×240 panel). Top: the Riftbound menu
+(1v1 / 4P / 2v2), a 4-player Riftbound game (three players took their +1; P4 is at 9 / 8), a
+1v1 Riftbound game (round buttons ≡ 🎲 ↻). Bottom: the Lorcana menu (2 or 4 players, 20 or 25
+lore), a 4-player Lorcana game to 25, a 4-player high roll after a tie was rolled off.*
 
 ---
 
@@ -63,7 +64,8 @@ Using it:
 | Commander damage mode | −/+ on an **opponent's** card = damage that opponent dealt to the victim · −/+ on the victim's card = life · Tap centre **✕**, or swipe the victim's card again = close · Swipe another card = switch player | Turn = damage from the focused opponent · Press = next opponent · Long-press = close |
 | Dice page | Tap a die (**D4 D6 D8 D12 D20**) = roll it · **BACK** = back to the game · In the popup: **REROLL** · **BACK** = back to the game · tap outside the popup = pick another die. From Home → DICE: the popup's **BACK** = pick another die, **HOME** (top left) = home menu | Turn = move yellow focus · Press = choose · Long-press = back one step |
 | High roll result | Tap anywhere = back to the game (that tap changes nothing) · **≡ → HIGH ROLL** = roll again | Any turn or press = back to the game |
-| Riftbound / Lorcana | Tap/hold **−**/**+** = score (hold repeats) · Tap a card = select · Centre **≡** = menu (**CONTINUE** / **HIGH ROLL** / **HOME**) · **🎲** = Dice page · Centre **↻** = Restart (asks first) | Turn = selected player's score · Press = other player · Long-press = Restart (asks first) · In the ≡ menu: turn = focus, press = choose, long-press = continue |
+| Riftbound / Lorcana menu | **CONTINUE** = back to the running game · **HIGH ROLL** · new game: Riftbound **1v1** / **4P** / **2v2**, Lorcana **2P** / **4P** to **20** / **25** (asks first) · **< HOME** | Turn = move yellow focus · Press = choose |
+| Riftbound / Lorcana | Tap/hold **−**/**+** = score (hold repeats) · Tap a card = select · **+1** (Riftbound) = plus life on / off · Round **≡** = the game's menu · **🎲** = Dice page · **↻** = Restart (asks first) | Turn = selected player's score · Press = next player · Long-press = Restart (asks first) |
 
 **Players and seating (2–6).** Home → **COMMANDER** opens the Commander menu. **CONTINUE**
 goes back to the game in progress; a number starts a **new game** for that many players.
@@ -112,18 +114,32 @@ red and shows *YOU ARE OUT*. − / + still work, so a mis-tap can be undone and 
 "revives" as soon as the numbers are legal again. (Rules live in `GameState.h`: `OUT_AT_LIFE`,
 `CMD_DAMAGE_LETHAL`, `CMD_DAMAGE_AFFECTS_LIFE`.)
 
-**Riftbound and Lorcana.** Two cards facing each other (the far player's is upside down),
-each with **−** on the left, **+** on the right and the score with its target (`5 /8`,
-`12 /20`). Scores stop at 0 and at the target; reaching the target turns the card gold with
-**WINNER!** (− still works to fix a mis-tap). The three round buttons on the centre line are
-**≡ menu**, **🎲 Dice** and **↻ Restart**. The ≡ menu has **CONTINUE**, **HIGH ROLL** and
-**HOME**. Restart asks *RESTART? … CANCEL / RESTART* and then puts both
-players back to 0 (no question when it is already 0 : 0). Each game keeps its own score, so
-you can leave a Riftbound game, play Commander, and come back to it. The targets are
-`RIFTBOUND_TARGET` and `LORCANA_TARGET` in `GameState.h`.
+**Riftbound and Lorcana.** Home → **RIFTBOUND** / **LORCANA** opens the game's menu (like
+the Commander one): **CONTINUE** the running game, **HIGH ROLL**, or a new game in another
+format — Riftbound **1v1** (to 8), **4P** (4 players free-for-all, to 8) or **2v2** (two
+team cards, to 11); Lorcana **2P** or **4P**, to **20** or **25** lore. A new game asks
+*NEW GAME? … CANCEL / START* unless everyone is still at 0.
+
+With 2 cards they face each other (the far one upside down): tall **−** / **+** at the sides,
+the score with its target in the middle (`5 /8`, `12 /20`). With 4 cards every player gets a
+card facing their edge of the table, like a 4-player Commander game. Scores stop at 0 and at
+the target; reaching the target turns the card gold with **WINNER!** (− still works to fix a
+mis-tap). The three round buttons are **≡** (the game's menu), **🎲 Dice** and **↻ Restart**;
+with 4 cards ≡ sits in the middle, ↻ between the top cards and 🎲 between the bottom cards.
+Restart asks *RESTART? … CANCEL / RESTART* and puts everyone back to 0 in the same format (no
+question when everyone is at 0 already). Each game keeps its own scores and format, so you
+can leave a Riftbound game, play Commander, and come back to it.
+
+**Plus life (+1, Riftbound only).** Every Riftbound card has a small **+1** next to its score.
+Tap it to give that player (team) one extra point: it turns gold and the score goes up by 1 —
+also past the target, so a card can show **9 /8** (11 /11 → 12 /11 in 2v2). Each player has
+at most one: tap the gold +1 again to take it back. **−** / **+** keep counting the normal
+points underneath (they stop at the target), so − never removes the +1 by accident. The
+targets live in `GameState.h` (`RIFTBOUND_TARGET`, `RIFTBOUND_TEAM_TARGET`, `LORCANA_TARGET`,
+`LORCANA_LONG_TARGET`), the formats in the menu in `ScreenScoreSetup.cpp`.
 
 **High Roll (who goes first).** Open the game's **≡** menu and choose **HIGH ROLL** (top right
-of the Commander menu; the middle entry in Riftbound/Lorcana). Every player's card turns into a
+of the game's menu). Every player's card turns into a
 D20 whose face changes fast, slows down and lands on a real roll (the ESP32's hardware random
 generator). The highest roll turns gold. If several players share the top number they're
 marked **TIE** and only they roll again, until there is one winner. While the dice roll,
@@ -225,7 +241,9 @@ tcgcounter/
     ├── ScreenCommanderSetup.cpp  Commander menu: continue / players 2-6 / new game (+ confirm)
     ├── CommanderLayout.h/.cpp    table layouts for 2-6 players, card geometry, touch mapping
     ├── ScreenCommander.cpp   life counter + commander damage, draws the layout's cards
-    ├── ScreenScore.cpp       Riftbound + Lorcana: 2-player score race with Restart
+    ├── ScreenScoreSetup.cpp  Riftbound / Lorcana menu: continue / format / new game (+ confirm)
+    ├── ScoreLayout.h/.cpp    Riftbound / Lorcana tables (2 or 4 cards), card geometry, touch mapping
+    ├── ScreenScore.cpp       Riftbound + Lorcana: score race with +1 plus life and Restart
     ├── ScreenDice.cpp        Home -> DICE: the Dice page on its own
     ├── HighRoll.h/.cpp       high roll logic: D20 per player, tie-breaks (no drawing)
     ├── TableDraw.h/.cpp      cards that face their player (off-screen, rotated), round buttons, dice shapes
@@ -274,7 +292,7 @@ Key design rules:
 | `tcg` | `p1`…`p6` | Commander life totals |
 | `tcg` | `sel` | selected player |
 | `tcg` | `scr` | last active screen (the device boots back into the game) |
-| `tcg` | `rb`, `lc` | Riftbound / Lorcana: P1 score, P2 score, selected player (3 bytes each, v0.5+; missing → 0 : 0) |
+| `tcg` | `rb`, `lc` | Riftbound / Lorcana, 12 bytes each (v0.9+): cards (2/4), teams, target, scores P1–P4, +1 P1–P4, selected player. v0.5–v0.8 saved 3 bytes (P1, P2, selected): loaded as a 2-player game with the default target. Missing → a fresh 2-player game |
 | `tcg` | `cd` | commander damage, 6×6 bytes `[victim][source]` (v0.2–v0.3 saved 4×4: converted on load, the game is kept; missing in v0.1 saves → all 0) |
 | `tcgtouch` | `cal`, `calv` | touch calibration (separate, so a future game reset can't erase it) |
 
@@ -472,9 +490,10 @@ Hold **BOOT**, tap **RST**, release BOOT, then start the upload again. After upl
 
 ## 8. Adding a game mode
 
-For another two-player race game, add a `ScoreMode` entry in `ScreenScore.cpp` (screen, target)
-and a `ScoreGame` in `AppState`; it then gets −/+, Restart, High Roll and Dice for free. For
-anything different:
+For another race-to-a-score game, add a `ScoreGame` in `AppState` (saved like `rb` / `lc`),
+two `Screen` values (table + menu), a `ScoreMode` entry in `ScreenScore.cpp` and a
+`GameMenu` with its formats in `ScreenScoreSetup.cpp`; it then gets 2 or 4 cards, −/+,
+Restart, High Roll and Dice for free. For anything different:
 
 | Step | File | What to do |
 |---|---|---|
