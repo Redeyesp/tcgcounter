@@ -7,6 +7,7 @@
 /* ---- NVS layout ---------------------------------------------------------
  *  namespace "tcg"       ver  (u8)  schema version
  *                        np   (u8)  Commander players 2..6 (v0.4+; missing -> 4)
+ *                        lay  (u8)  Commander table layout for that count (v0.10+; missing -> 0)
  *                        p1..p6 (i16) Commander life totals (p5, p6 from v0.4)
  *                        sel  (u8)  selected player 0..5
  *                        scr  (u8)  last active Screen
@@ -14,6 +15,9 @@
  *                             36 bytes (6x6) from v0.4,
  *                             16 bytes (4x4) in v0.2-v0.3 -> converted on load,
  *                             missing (v0.1) -> all zero
+ *                        cd2  partner commander damage [victim][source], 36 bytes (v0.10+;
+ *                             missing -> all zero)
+ *                        pt   (u8)  partners: bit p = player p has two commanders (v0.10+)
  *                        rb   Riftbound, lc Lorcana:
  *                             12 bytes from v0.9: players, teams, target,
  *                               score P1..P4, plus life P1..P4, selected
@@ -87,6 +91,10 @@ void loadState() {
                                 : COMMANDER_DEFAULT_PLAYERS;  // saved before v0.4: 4 players
       for (uint8_t i = 0; i < COMMANDER_MAX_PLAYERS; ++i)
         if (p.isKey(LIFE_KEYS[i])) c.life[i] = p.getShort(LIFE_KEYS[i], COMMANDER_START_LIFE);
+      c.layout = p.getUChar("lay", 0);
+      c.partners = p.getUChar("pt", 0);
+      if (p.isKey("cd2") && p.getBytesLength("cd2") == sizeof(c.partnerDamage))
+        p.getBytes("cd2", c.partnerDamage, sizeof(c.partnerDamage));
       c.selected = p.getUChar("sel", 0);
       g_state.screen = (Screen)p.getUChar("scr", SCREEN_HOME);
       if (p.isKey("cd")) {
@@ -115,8 +123,8 @@ void loadState() {
   s_lastChangeMs = millis();
 
   const CommanderGame& c = g_state.commander;
-  LOGF("[storage] %s: %u players, life %d/%d/%d/%d/%d/%d, selected P%u, screen %u\n",
-       restored ? "restored" : "no saved game, defaults", c.players,
+  LOGF("[storage] %s: %u players (layout %u), life %d/%d/%d/%d/%d/%d, selected P%u, screen %u\n",
+       restored ? "restored" : "no saved game, defaults", c.players, c.layout,
        c.life[0], c.life[1], c.life[2], c.life[3], c.life[4], c.life[5],
        c.selected + 1, (unsigned)g_state.screen);
   const ScoreGame& r = g_state.riftbound;
@@ -138,6 +146,19 @@ static void writeState(const AppState& s) {
   if (all) { p.putUChar("ver", SCHEMA_VERSION); ++writes; }
   if (all || s.commander.players != s_saved.commander.players) {
     p.putUChar("np", s.commander.players);
+    ++writes;
+  }
+  if (all || s.commander.layout != s_saved.commander.layout) {
+    p.putUChar("lay", s.commander.layout);
+    ++writes;
+  }
+  if (all || s.commander.partners != s_saved.commander.partners) {
+    p.putUChar("pt", s.commander.partners);
+    ++writes;
+  }
+  if (all || memcmp(s.commander.partnerDamage, s_saved.commander.partnerDamage,
+                    sizeof(s.commander.partnerDamage)) != 0) {
+    p.putBytes("cd2", s.commander.partnerDamage, sizeof(s.commander.partnerDamage));
     ++writes;
   }
   for (uint8_t i = 0; i < COMMANDER_MAX_PLAYERS; ++i) {

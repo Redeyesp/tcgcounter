@@ -39,11 +39,21 @@ constexpr uint8_t CMD_DAMAGE_MAX       = 99;
 // amount (and removing it gives the life back), like the Lotus app.
 constexpr bool    CMD_DAMAGE_AFFECTS_LIFE = true;
 
+// Table layouts per player count (where the cards sit; CommanderLayout.cpp
+// has them): 2 -> 1, 3 -> 3 (P3 left / middle / right), 4 -> 1,
+// 5 -> 2 (head of the table right / left), 6 -> 2 (3 + 3, ends).
+uint8_t commanderLayoutCount(uint8_t players);
+
 struct CommanderGame {
   uint8_t players;   // 2..6 players at the table (seats 0..players-1 are in use)
+  uint8_t layout;    // table layout for this player count, 0..commanderLayoutCount()-1
   int16_t life[COMMANDER_MAX_PLAYERS];
   uint8_t selected;  // 0..players-1 = P1..Pn
   uint8_t cmdDamage[COMMANDER_MAX_PLAYERS][COMMANDER_MAX_PLAYERS];  // [victim][source]; diagonal unused
+  // Partner: a player with two commanders. Each one's damage counts on its
+  // own (21 from either is lethal); the partner's goes here.
+  uint8_t partnerDamage[COMMANDER_MAX_PLAYERS][COMMANDER_MAX_PLAYERS];  // [victim][source]
+  uint8_t partners;  // bit p set = player p has a partner
   // FUTURE: poison, energy, commander tax.
 };
 
@@ -93,10 +103,14 @@ inline bool operator!=(const ScoreGame& a, const ScoreGame& b) { return !(a == b
 inline bool operator!=(const AppState& a, const AppState& b) { return !(a == b); }
 
 // ---- Commander rules ----
-// Fresh game for `players` people (clamped to 2..6): everyone at 40, no
-// commander damage. The UI only calls this from the Commander menu, after a
-// confirmation whenever the running game has any progress in it.
-void commanderNewGame(CommanderGame& g, uint8_t players = COMMANDER_DEFAULT_PLAYERS);
+// Fresh game for `players` people (clamped to 2..6) at table `layout`:
+// everyone at 40, no commander damage, no partners. The UI only calls this
+// from the Commander menu, after a confirmation whenever the running game
+// has any progress in it.
+void commanderNewGame(CommanderGame& g, uint8_t players = COMMANDER_DEFAULT_PLAYERS,
+                      uint8_t layout = 0);
+// Another table layout for the same players; the game itself is kept.
+bool commanderSetLayout(CommanderGame& g, uint8_t layout);
 // True while nothing has happened yet (all at 40, no commander damage):
 // starting a new game would lose nothing, so no confirmation is needed.
 bool commanderIsFresh(const CommanderGame& g);
@@ -104,9 +118,20 @@ bool commanderAdjustLife(CommanderGame& g, uint8_t player, int delta);  // true 
 void commanderSelect(CommanderGame& g, uint8_t player);
 void commanderSelectNext(CommanderGame& g);  // P1 -> P2 -> ... -> Pn -> P1
 
-// Commander damage `victim` took from `source`'s commander. Also moves life
-// by the opposite amount when CMD_DAMAGE_AFFECTS_LIFE. True if anything changed.
-bool commanderAdjustCmdDamage(CommanderGame& g, uint8_t victim, uint8_t source, int delta);
+// Commander damage `victim` took from `source`'s commander (`which` 0) or
+// partner (`which` 1, only while `source` has one). Also moves life by the
+// opposite amount when CMD_DAMAGE_AFFECTS_LIFE. True if anything changed.
+bool commanderAdjustCmdDamage(CommanderGame& g, uint8_t victim, uint8_t source, int delta,
+                              uint8_t which = 0);
+uint8_t commanderCmdDamage(const CommanderGame& g, uint8_t victim, uint8_t source, uint8_t which = 0);
+
+// ---- Partner (two commanders) ----
+inline bool commanderHasPartner(const CommanderGame& g, uint8_t p) {
+  return p < g.players && ((g.partners >> p) & 1);
+}
+// The partner can only be taken away again while it has dealt no damage.
+bool commanderCanDropPartner(const CommanderGame& g, uint8_t p);
+bool commanderSetPartner(CommanderGame& g, uint8_t p, bool on);  // true if changed
 
 // Opponents of `player` in seat order: index 0..players-2 -> player number.
 uint8_t commanderOpponent(uint8_t player, uint8_t index);

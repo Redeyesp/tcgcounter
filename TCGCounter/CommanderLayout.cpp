@@ -10,28 +10,49 @@ constexpr Side face(Side s) { return COMMANDER_FACE_SEATS ? s : Side::Bottom; }
 
 constexpr Side TOP = face(Side::Top), BOTTOM = face(Side::Bottom), RIGHT = face(Side::Right);
 
-// 2 px gaps between cards. Index = number of players - 2.
+constexpr Side LEFT = face(Side::Left);
+
+// 2 px gaps between cards. For each player count, variant 0 first (the
+// layout saves from before v0.10 had), then the others in picker order.
 const TableLayout LAYOUTS[] = {
   // 2 players: one wide card each, facing each other
   {2, {{{0, 0, 320, 119}, TOP}, {{0, 121, 320, 119}, BOTTOM}},
-   2, {{136, 120, HubKind::Menu}, {184, 120, HubKind::Dice}}},
-  // 3 players: 2x2 grid, bottom-right seat left empty
+   2, {{136, 120, HubKind::Menu}, {184, 120, HubKind::Dice}}, "FACE TO FACE"},
+  // 3 players: 2x2 grid with P3 bottom left, the bottom-right seat empty
   {3, {{{0, 0, 159, 119}, TOP}, {{161, 0, 159, 119}, TOP}, {{0, 121, 159, 119}, BOTTOM}},
-   2, {{160, 120, HubKind::Menu}, {240, 180, HubKind::Dice}}},  // 🎲 in the empty seat
+   2, {{160, 120, HubKind::Menu}, {240, 180, HubKind::Dice}}, "LEFT"},  // 🎲 in the empty seat
+  // 3 players: P3 alone across the whole bottom; 🎲 between P1 and P2
+  {3, {{{0, 0, 159, 119}, TOP}, {{161, 0, 159, 119}, TOP}, {{0, 121, 320, 119}, BOTTOM}},
+   2, {{160, 120, HubKind::Menu}, {160, 60, HubKind::Dice}}, "MIDDLE"},
+  // 3 players: P3 bottom right, the bottom-left seat empty
+  {3, {{{0, 0, 159, 119}, TOP}, {{161, 0, 159, 119}, TOP}, {{161, 121, 159, 119}, BOTTOM}},
+   2, {{160, 120, HubKind::Menu}, {80, 180, HubKind::Dice}}, "RIGHT"},
   // 4 players: 2x2 grid
   {4, {{{0, 0, 159, 119}, TOP}, {{161, 0, 159, 119}, TOP},
        {{0, 121, 159, 119}, BOTTOM}, {{161, 121, 159, 119}, BOTTOM}},
-   2, {{160, 120, HubKind::Menu}, {160, 180, HubKind::Dice}}},
+   2, {{160, 120, HubKind::Menu}, {160, 180, HubKind::Dice}}, "2 x 2"},
   // 5 players: 2x2 grid on the left, head of the table on the right
   {5, {{{0, 0, 119, 119}, TOP}, {{121, 0, 119, 119}, TOP},
        {{0, 121, 119, 119}, BOTTOM}, {{121, 121, 119, 119}, BOTTOM},
        {{242, 0, 78, 240}, RIGHT}},
-   2, {{120, 120, HubKind::Menu}, {120, 180, HubKind::Dice}}},
+   2, {{120, 120, HubKind::Menu}, {120, 180, HubKind::Dice}}, "HEAD RIGHT"},
+  // 5 players: the same, head of the table on the left
+  {5, {{{80, 0, 119, 119}, TOP}, {{201, 0, 119, 119}, TOP},
+       {{80, 121, 119, 119}, BOTTOM}, {{201, 121, 119, 119}, BOTTOM},
+       {{0, 0, 78, 240}, LEFT}},
+   2, {{200, 120, HubKind::Menu}, {200, 180, HubKind::Dice}}, "HEAD LEFT"},
   // 6 players: three on each long side; ≡ and 🎲 on the two column joints
   {6, {{{0, 0, 105, 119}, TOP}, {{107, 0, 106, 119}, TOP}, {{215, 0, 105, 119}, TOP},
        {{0, 121, 105, 119}, BOTTOM}, {{107, 121, 106, 119}, BOTTOM}, {{215, 121, 105, 119}, BOTTOM}},
-   2, {{106, 120, HubKind::Menu}, {214, 120, HubKind::Dice}}},
+   2, {{106, 120, HubKind::Menu}, {214, 120, HubKind::Dice}}, "3 + 3"},
+  // 6 players: two on each long side, one at each end (P5 right, P6 left);
+  // 🎲 where the right end card meets the middle (its label pill is shortened)
+  {6, {{{80, 0, 79, 119}, TOP}, {{161, 0, 79, 119}, TOP},
+       {{80, 121, 79, 119}, BOTTOM}, {{161, 121, 79, 119}, BOTTOM},
+       {{242, 0, 78, 240}, RIGHT}, {{0, 0, 78, 240}, LEFT}},
+   2, {{160, 120, HubKind::Menu}, {241, 120, HubKind::Dice}}, "ENDS"},
 };
+constexpr uint8_t LAYOUT_COUNT = sizeof(LAYOUTS) / sizeof(LAYOUTS[0]);
 
 constexpr int GAP_SLACK = 2;  // a touch this close to a card (in a gap) still counts for it
 
@@ -59,10 +80,18 @@ Rect rect(int x, int y, int w, int h) { return Rect{i16(x), i16(y), i16(w), i16(
 
 }  // namespace
 
-const TableLayout& tableLayout(uint8_t players) {
+const TableLayout& tableLayout(uint8_t players, uint8_t variant) {
   if (players < COMMANDER_MIN_PLAYERS || players > COMMANDER_MAX_PLAYERS)
     players = COMMANDER_DEFAULT_PLAYERS;
-  return LAYOUTS[players - COMMANDER_MIN_PLAYERS];
+  if (variant >= commanderLayoutCount(players)) variant = 0;
+  const TableLayout* first = nullptr;
+  uint8_t k = 0;
+  for (uint8_t i = 0; i < LAYOUT_COUNT; ++i) {
+    if (LAYOUTS[i].players != players) continue;
+    if (!first) first = &LAYOUTS[i];
+    if (k++ == variant) return LAYOUTS[i];
+  }
+  return first ? *first : LAYOUTS[0];
 }
 
 static bool sideways(Side s) { return s == Side::Left || s == Side::Right; }
@@ -119,6 +148,10 @@ CardGeom cardGeom(int16_t w, int16_t h) {
     g.zoneY = i16(by - 6);
     g.zoneTop = 0;
     g.minusEnd = g.plusStart = i16(w / 2);
+    // partner button: the right end of the label row (same clearance as the pill)
+    const int pw = w >= 100 ? 26 : 18;
+    g.partner = rect(g.pill.x + g.pill.w - pw, g.pill.y, pw, g.pill.h);
+    g.pillShort = rect(g.pill.x, g.pill.y, g.pill.w - pw - 4, g.pill.h);
     // D20 between the label and the card's bottom edge
     g.dieR = 36;
     g.dieCx = i16(w / 2);
@@ -147,6 +180,18 @@ CardGeom cardGeom(int16_t w, int16_t h) {
     const int halfW = g.dieR * 7 / 8 + 4;  // hexagon half-width (~0.866 R) + gap
     if (g.dieCy - g.dieR < g.pill.y + g.pill.h && g.dieCx - halfW < g.pill.x + g.pill.w)
       g.dieCx = i16(g.pill.x + g.pill.w + halfW);
+    // partner button in the caption corner (opponent cards show no caption there)
+    g.partner = rect(g.capX - 26, g.pill.y, 26, g.pill.h);
+    g.pillShort = g.pill;
+  }
+  return g;
+}
+
+CardGeom cardGeom(const TableLayout& L, const Seat& s) {
+  CardGeom g = cardGeom(s);
+  if (g.wide) {  // a round button on this card's top edge: shorter label pill
+    while (g.pill.w > 48 && !clearOfHubs(L, s, g.pill)) g.pill.w = i16(g.pill.w - 2);
+    g.pillShort = g.pill;
   }
   return g;
 }
@@ -185,8 +230,8 @@ int8_t tableSeatAt(const TableLayout& L, int x, int y) {
   return (int8_t)best;
 }
 
-Hit commanderHitTest(uint8_t players, int x, int y) {
-  const TableLayout& L = tableLayout(players);
+Hit commanderHitTest(uint8_t players, int x, int y, uint8_t variant) {
+  const TableLayout& L = tableLayout(players, variant);
   const int8_t hub = tableHubAt(L, x, y);
   if (hub >= 0) return {Zone::Hub, (uint8_t)hub};
   const int8_t best = tableSeatAt(L, x, y);

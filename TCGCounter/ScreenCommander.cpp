@@ -23,10 +23,14 @@
  *    Touch:   −/+ on an opponent's card = damage that opponent dealt to the victim
  *             −/+ on the victim's card  = victim's life
  *             tap an opponent's card = focus it (for the encoder)
+ *             + on an opponent's card (top right) = that player has a PARTNER:
+ *               the card then counts each of their two commanders on its own
+ *               (left / right number; tap one to pick it for − / +). x takes
+ *               the partner away again while it has dealt no damage.
  *             swipe the victim's card again, or tap centre ✕ = back to normal
  *             swipe another card = switch the victim
- *    Encoder: turn = damage from the focused opponent · press = next opponent
- *             long-press = back to normal
+ *    Encoder: turn = damage from the focused opponent (commander) · press =
+ *             next opponent (or its partner) · long-press = back to normal
  *    Closes by itself after CMD_MODE_TIMEOUT_MS without use.
  *
  *  Every card is drawn the right way round for the player at its table edge
@@ -42,7 +46,7 @@
  *  the encoder) to go back to the life totals.
  *
  *  Commander damage also costs life (CMD_DAMAGE_AFFECTS_LIFE, like Lotus).
- *  OUT (life <= 0, or 21+ from one commander): red card, "YOU ARE OUT";
+ *  OUT (life <= 0, or 21+ from one commander — partners count apart): red card, "YOU ARE OUT";
  *  − / + keep working so mistakes can be undone.
  * ==========================================================================*/
 #include <Arduino.h>
@@ -63,13 +67,15 @@ namespace {
 constexpr int FRAME_R = 10;     // card corner radius
 constexpr int FRAME_THICK = 4;  // highlight border thickness
 
-const TableLayout& table() { return tableLayout(g_state.commander.players); }
+const TableLayout& table() { return tableLayout(g_state.commander.players, g_state.commander.layout); }
 
 // ---------------------------------------------------------------- UI-only state
 constexpr int8_t NONE = -1;
 Hit      s_press  = NO_HIT;  // what the finger is holding (feedback / repeat / swipe)
 int8_t   s_victim = NONE;    // commander damage mode: whose damage is shown (NONE = normal)
 uint8_t  s_focus  = 0;       // damage mode: opponent the encoder adjusts
+uint8_t  s_partnerSel[COMMANDER_MAX_PLAYERS] = {};  // damage mode: commander 0/1 picked on each opponent card
+bool     s_pressPartner = false;  // the finger is on an opponent card's partner button
 uint32_t s_modeUsedAt = 0;   // damage mode: last interaction (auto-close)
 
 HighRoll s_roll;             // high roll (who goes first)
@@ -84,6 +90,7 @@ void touchMode() { s_modeUsedAt = millis(); }
 void enterCmdMode(uint8_t victim) {
   s_victim = (int8_t)victim;
   s_focus = commanderOpponent(victim, 0);
+  for (uint8_t& sel : s_partnerSel) sel = 0;
   commanderSelect(g_state.commander, victim);
   touchMode();
 }
@@ -97,19 +104,38 @@ void startHighRoll() {
   highRollStart(s_roll, g_state.commander.players, millis(), rollD20);
 }
 
-void nextFocus() {  // cycle the encoder focus through the victim's opponents
+uint8_t pickedCommander(uint8_t p) {  // 0, or 1 = the partner (if p has one)
+  return commanderHasPartner(g_state.commander, p) ? s_partnerSel[p] : 0;
+}
+
+// cycle the encoder focus through the victim's opponents (and their partners)
+void nextFocus() {
+  if (pickedCommander(s_focus) == 0 && commanderHasPartner(g_state.commander, s_focus)) {
+    s_partnerSel[s_focus] = 1;
+    return;
+  }
   const uint8_t n = g_state.commander.players;
   for (uint8_t k = 1; k <= n; ++k) {
     const uint8_t p = (uint8_t)((s_focus + k) % n);
-    if (p != (uint8_t)s_victim) { s_focus = p; return; }
+    if (p != (uint8_t)s_victim) { s_focus = p; s_partnerSel[p] = 0; return; }
   }
+}
+
+void togglePartner(uint8_t p) {
+  CommanderGame& game = g_state.commander;
+  if (commanderSetPartner(game, p, !commanderHasPartner(game, p))) {
+    s_partnerSel[p] = commanderHasPartner(game, p) ? 1 : 0;  // a new partner: ready to count
+    s_focus = p;
+  }
+  touchMode();
 }
 
 // −/+ on card p (or encoder on the selected / focused card)
 void adjustCard(uint8_t p, int delta) {
   CommanderGame& game = g_state.commander;
   if (cmdMode() && p != (uint8_t)s_victim) {
-    commanderAdjustCmdDamage(game, (uint8_t)s_victim, p, delta);  // p dealt damage to victim
+    // p (its commander or partner) dealt damage to the victim
+    commanderAdjustCmdDamage(game, (uint8_t)s_victim, p, delta, pickedCommander(p));
     s_focus = p;
   } else {
     commanderAdjustLife(game, p, delta);
@@ -117,11 +143,14 @@ void adjustCard(uint8_t p, int delta) {
   if (cmdMode()) touchMode();
 }
 
-uint8_t biggestCmdDamage(uint8_t p) {
+uint8_t biggestCmdDamage(uint8_t p) {  // from one commander (partners count apart)
   const CommanderGame& g = g_state.commander;
   uint8_t m = 0;
-  for (uint8_t j = 0; j < g.players; ++j)
-    if (j != p && g.cmdDamage[p][j] > m) m = g.cmdDamage[p][j];
+  for (uint8_t j = 0; j < g.players; ++j) {
+    if (j == p) continue;
+    if (g.cmdDamage[p][j] > m) m = g.cmdDamage[p][j];
+    if (g.partnerDamage[p][j] > m) m = g.partnerDamage[p][j];
+  }
   return m;
 }
 
@@ -129,11 +158,17 @@ uint8_t biggestCmdDamage(uint8_t p) {
 // Everything that decides how one card looks. Rendering compares this with
 // what was last drawn and repaints only the cards that differ.
 enum class Role : uint8_t { Life, Victim, Source };
+enum class PartnerBtn : uint8_t { None, Add, Remove, Locked };  // Locked: partner has dealt damage
 
 struct CardView {
   Role      role;
   uint8_t   victim;     // Source cards: whose damage they show
   int16_t   value;      // life, or commander damage dealt to the victim
+  int16_t   value2;     // Source cards with a partner: the partner's damage
+  bool      partner;    // Source card counts two commanders
+  uint8_t   sel;        // ... and this one (0/1) takes − / +
+  PartnerBtn partnerBtn;
+  bool      partnerPressed;
   OutReason out;        // this card's own player
   uint8_t   cmdMax;     // Life cards: biggest damage from one commander (badge)
   bool      highlight;  // thick coloured border
@@ -141,7 +176,9 @@ struct CardView {
   DieState  die;        // high roll running: how this player's D20 looks
   uint8_t   face;       // high roll: number on the D20
   bool operator==(const CardView& o) const {
-    return role == o.role && victim == o.victim && value == o.value && out == o.out &&
+    return role == o.role && victim == o.victim && value == o.value && value2 == o.value2 &&
+           partner == o.partner && sel == o.sel && partnerBtn == o.partnerBtn &&
+           partnerPressed == o.partnerPressed && out == o.out &&
            cmdMax == o.cmdMax && highlight == o.highlight && pressed == o.pressed &&
            die == o.die && face == o.face;
   }
@@ -154,6 +191,11 @@ CardView viewOf(uint8_t i) {
   v.victim = cmdMode() ? (uint8_t)s_victim : 0;
   v.out = commanderOutReason(g, i);
   v.cmdMax = 0;
+  v.value2 = 0;
+  v.partner = false;
+  v.sel = 0;
+  v.partnerBtn = PartnerBtn::None;
+  v.partnerPressed = false;
   if (!cmdMode()) {
     v.role = Role::Life;
     v.value = g.life[i];
@@ -167,6 +209,15 @@ CardView viewOf(uint8_t i) {
     v.role = Role::Source;
     v.value = g.cmdDamage[v.victim][i];
     v.highlight = (s_focus == i);
+    v.partner = commanderHasPartner(g, i);
+    if (v.partner) {
+      v.value2 = g.partnerDamage[v.victim][i];
+      v.sel = s_partnerSel[i];
+      v.partnerBtn = commanderCanDropPartner(g, i) ? PartnerBtn::Remove : PartnerBtn::Locked;
+    } else {
+      v.partnerBtn = PartnerBtn::Add;
+    }
+    v.partnerPressed = s_pressPartner && s_press.index == i;
   }
   const bool onButton = s_press.zone == Zone::Minus || s_press.zone == Zone::Plus;
   v.pressed = (onButton && s_press.index == i) ? s_press.zone : Zone::None;
@@ -193,10 +244,16 @@ uint16_t cardBg(const CardView& v) {
 // Player label: the longest form that fits the pill.
 //   "PLAYER 5" -> "P5"     commander damage: "P5 -> P1" -> "P5>P1" -> "P5"
 // `*shortSource` = a commander damage label lost its victim part.
+// Opponent cards in commander damage mode share the label row with the
+// partner button: their pill is the shorter one.
+const Rect& labelPill(const CardGeom& g, const CardView& v) {
+  return v.role == Role::Source ? g.pillShort : g.pill;
+}
+
 void labelText(lgfx::LovyanGFX& c, const CardGeom& g, uint8_t i, const CardView& v,
                char* buf, size_t n, bool* shortSource) {
   const unsigned p = i + 1, victim = v.victim + 1;
-  const int room = g.pill.w - 12;
+  const int room = labelPill(g, v).w - 12;
   c.setFont(theme::fontLabel());
   bool victimShown = false;
   if (v.role == Role::Source) {
@@ -267,10 +324,77 @@ void drawCaption(lgfx::LovyanGFX& c, int ox, int oy, const CardGeom& g, const ch
   c.drawString(text, ox + g.capX, oy + g.capY);
 }
 
+// Partner: the two commanders' damage side by side; the picked one (− / +)
+// is bright with a bar under it, the other dimmed. 21+ = red.
+void drawPartnerDamage(lgfx::LovyanGFX& c, int ox, int oy, const CardGeom& g, uint8_t i,
+                       const CardView& v) {
+  const int halfW = g.numMaxW / 2;
+  uint8_t fontCount = 0;
+  const theme::NumberFont* fonts = theme::numberFonts(fontCount);
+  for (uint8_t k = 0; k < 2; ++k) {
+    const int16_t val = k ? v.value2 : v.value;
+    char num[8];
+    snprintf(num, sizeof(num), "%d", val);
+    const int cx = ox + g.numCx + (k ? halfW / 2 : -halfW / 2), cy = oy + g.numCy;
+    const bool picked = k == v.sel;
+    const uint16_t col = val >= CMD_DAMAGE_LETHAL ? theme::DANGER : (picked ? theme::TEXT : theme::TEXT_DIM);
+    // the big 7-segment digits when they fit, else bold text
+    const theme::NumberFont* f = nullptr;
+    for (uint8_t n = 0; n < fontCount && !f; ++n)
+      if (fonts[n].height >= 30 && fonts[n].height <= g.numMaxH && numberWidth(c, fonts[n], num) <= halfW - 6)
+        f = &fonts[n];
+    int bottom;
+    if (f) {
+      drawDigits(c, *f, num, cx, cy, lgfx::textdatum_t::top_center, col);
+      bottom = cy + f->height / 2;
+    } else {
+      c.setFont(theme::fontTitle());
+      if (c.textWidth(num) > halfW - 6) c.setFont(theme::fontButton());
+      c.setTextDatum(lgfx::textdatum_t::middle_center);
+      c.setTextColor(col);
+      c.drawString(num, cx, cy);
+      c.drawString(num, cx + 1, cy);
+      bottom = cy + c.fontHeight() / 3;
+    }
+    if (picked) c.fillRect(cx - 9, bottom + 3, 18, 3, theme::PLAYER[i]);
+  }
+  c.drawFastVLine(ox + g.numCx, oy + g.numCy - 14, 28, theme::PANEL_EDGE);  // divider
+}
+
+// + = give this player a partner, x = take it away (dimmed: it dealt damage)
+void drawPartnerButton(lgfx::LovyanGFX& c, int ox, int oy, const CardGeom& g, const CardView& v) {
+  if (v.partnerBtn == PartnerBtn::None) return;
+  const Rect b = {(int16_t)(ox + g.partner.x), (int16_t)(oy + g.partner.y), g.partner.w, g.partner.h};
+  const uint16_t fill = v.partnerPressed ? theme::BUTTON_DOWN : theme::BUTTON;
+  const uint16_t ink = v.partnerBtn == PartnerBtn::Locked ? theme::PANEL_EDGE : theme::TEXT;
+  c.fillRoundRect(b.x, b.y, b.w, b.h, b.h / 2, fill);
+  if (v.partnerBtn == PartnerBtn::Add) {
+    uiPlus(c, b.cx(), b.cy(), 12, 3, ink);
+  } else {  // x
+    for (int t = -1; t <= 1; ++t) {
+      c.drawLine(b.cx() - 4 + t, b.cy() - 4, b.cx() + 4 + t, b.cy() + 4, ink);
+      c.drawLine(b.cx() - 4 + t, b.cy() + 4, b.cx() + 4 + t, b.cy() - 4, ink);
+    }
+  }
+}
+
 void drawCenter(lgfx::LovyanGFX& c, int ox, int oy, const CardGeom& g, uint8_t i, const CardView& v) {
   const int cx = ox + g.numCx, cy = oy + g.numCy;
   char num[8];
   snprintf(num, sizeof(num), "%d", v.value);
+
+  if (v.role == Role::Source && v.partner) {
+    drawPartnerDamage(c, ox, oy, g, i, v);
+    char label[16];
+    bool shortSource = false;
+    labelText(c, g, i, v, label, sizeof(label), &shortSource);
+    if (shortSource) {  // the label only says "P5": name the victim here
+      char cap[12];
+      snprintf(cap, sizeof(cap), "TO P%u", (unsigned)(v.victim + 1));
+      drawCaption(c, ox, oy, g, cap, theme::fontSmall(), theme::TEXT_DIM);
+    }
+    return;
+  }
 
   if (v.role == Role::Source) {
     // ---- commander damage this card's player dealt to the victim:  "7 /21"
@@ -344,7 +468,8 @@ void drawFrame(lgfx::LovyanGFX& c, int ox, int oy, const CardGeom& g, uint8_t i,
 }
 
 void drawLabel(lgfx::LovyanGFX& c, int ox, int oy, const CardGeom& g, uint8_t i, const CardView& v) {
-  const Rect p = {(int16_t)(ox + g.pill.x), (int16_t)(oy + g.pill.y), g.pill.w, g.pill.h};
+  const Rect& lp = labelPill(g, v);
+  const Rect p = {(int16_t)(ox + lp.x), (int16_t)(oy + lp.y), lp.w, lp.h};
   char buf[16];
   labelText(c, g, i, v, buf, sizeof(buf), nullptr);
   uint16_t textCol;
@@ -412,6 +537,7 @@ void drawCardContent(lgfx::LovyanGFX& c, int ox, int oy, const CardGeom& g, uint
   c.fillRoundRect(ox, oy, g.w, g.h, FRAME_R, cardBg(v));
   drawFrame(c, ox, oy, g, i, v);
   drawLabel(c, ox, oy, g, i, v);
+  drawPartnerButton(c, ox, oy, g, v);
   drawCenter(c, ox, oy, g, i, v);
   drawButton(c, ox, oy, g, i, Zone::Minus, v.pressed == Zone::Minus);
   drawButton(c, ox, oy, g, i, Zone::Plus,  v.pressed == Zone::Plus);
@@ -427,7 +553,7 @@ void paintCard(lgfx::LovyanGFX& c, int ox, int oy, const void* ctx) {
 
 void drawCard(uint8_t i, const CardView& v) {
   const Seat& s = table().seats[i];
-  const CardGeom g = cardGeom(s);
+  const CardGeom g = cardGeom(table(), s);
   const CardJob job = {&g, i, &v};
   s_paintSeat = &s;
   drawSeatCard(s, paintCard, &job);  // off-screen, turned to face the player, one copy
@@ -462,6 +588,7 @@ void handleRollInput(const InputEvent& e) {
 // ---------------------------------------------------------------- module functions
 void onEnter() {
   s_press = NO_HIT;
+  s_pressPartner = false;
   exitCmdMode();  // always come back to the normal life view
   s_dice.close();
   highRollStop(s_roll);
@@ -491,9 +618,20 @@ void handleInput(const InputEvent& e) {
       break;
 
     case InputType::TouchDown: {
-      s_press = commanderHitTest(game.players, e.x, e.y);
+      s_press = commanderHitTest(game.players, e.x, e.y, game.layout);
+      s_pressPartner = false;
       const Zone z = s_press.zone;
       const uint8_t p = s_press.index;
+      if (z == Zone::Area && cmdMode() && p != (uint8_t)s_victim) {
+        // an opponent card: its partner button, or which of its two commanders
+        const Seat& st = table().seats[p];
+        const CardGeom g = cardGeom(table(), st);
+        int lx, ly;
+        seatToLocal(st, e.x, e.y, lx, ly);
+        const Rect& b = g.partner;
+        s_pressPartner = lx >= b.x - 4 && lx < b.x + b.w + 4 && ly >= b.y - 4 && ly < b.y + b.h + 4;
+        if (!s_pressPartner && commanderHasPartner(game, p)) s_partnerSel[p] = lx < g.numCx ? 0 : 1;
+      }
       if (z == Zone::Area || z == Zone::Minus || z == Zone::Plus) {
         if (!cmdMode()) commanderSelect(game, p);
         else { if (p != (uint8_t)s_victim) s_focus = p; touchMode(); }
@@ -509,6 +647,7 @@ void handleInput(const InputEvent& e) {
       break;
 
     case InputType::TouchSwipe: {  // only swipes that start on a card's number/label area
+      s_pressPartner = false;
       if (s_press.zone != Zone::Area) break;
       const uint8_t p = s_press.index;
       if (!isSidewaysSwipe(table().seats[p], e.delta)) break;  // sideways for that player only
@@ -520,7 +659,10 @@ void handleInput(const InputEvent& e) {
 
     case InputType::TouchUp: {
       const Hit released = s_press;
+      const bool onPartner = s_pressPartner;
       s_press = NO_HIT;
+      s_pressPartner = false;
+      if (onPartner && cmdMode() && isTap(e, TOUCH_TAP_MAX_MS)) togglePartner(released.index);
       if (released.zone == Zone::Hub && isTap(e, TOUCH_TAP_MAX_MS)) {
         if (table().hubs[released.index].kind == HubKind::Dice) {  // 🎲
           exitCmdMode();

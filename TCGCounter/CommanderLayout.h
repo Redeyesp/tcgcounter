@@ -7,29 +7,35 @@
  *  the host tests check the touch mapping with it.
  *
  *  Screen 320 x 240 (landscape). The device lies in the middle of the table;
- *  every card faces the player sitting at that edge (COMMANDER_FACE_SEATS):
+ *  every card faces the player sitting at that edge (COMMANDER_FACE_SEATS).
+ *  Some player counts have several layouts (picked in the Commander menu):
  *
- *   2 players           3 players           4 players
- *   ┌──────────────┐    ┌──────┬──────┐    ┌──────┬──────┐
- *   │   P1 (top)   │    │  P1  │  P2  │    │  P1  │  P2  │   top row: upside down
- *   ├──────◉───────┤    ├──────◉──────┤    ├──────◉──────┤
- *   │  P2 (bottom) │    │  P3  │ empty│    │  P3  │  P4  │
- *   └──────────────┘    └──────┴──────┘    └──────┴──────┘
+ *   2 players           3 players: LEFT       MIDDLE           RIGHT
+ *   ┌──────────────┐    ┌──────┬──────┐  ┌──────┬──────┐  ┌──────┬──────┐
+ *   │   P1 (top)   │    │  P1  │  P2  │  │  P1  │  P2  │  │  P1  │  P2  │
+ *   ├────≡──🎲─────┤    ├──────≡──────┤  ├──────≡──────┤  ├──────≡──────┤
+ *   │  P2 (bottom) │    │  P3  │  🎲  │  │      P3     │  │  🎲  │  P3  │
+ *   └──────────────┘    └──────┴──────┘  └─────────────┘  └──────┴──────┘
+ *                                        (🎲 between P1 and P2)
+ *   4 players            5 players: HEAD RIGHT        HEAD LEFT
+ *   ┌──────┬──────┐      ┌────┬────┬──┐            ┌──┬────┬────┐
+ *   │  P1  │  P2  │      │ P1 │ P2 │  │            │  │ P1 │ P2 │
+ *   ├──────≡──────┤      ├────≡────┤P5│            │P5├────≡────┤
+ *   │  P3  🎲  P4 │      │ P3 🎲 P4 │  │            │  │ P3 🎲 P4 │
+ *   └──────┴──────┘      └────┴────┴──┘            └──┴────┴────┘
  *
- *   5 players (head of the table on the right)    6 players
- *   ┌────┬────┬──┐                                ┌────┬────┬────┐
- *   │ P1 │ P2 │  │                                │ P1 │ P2 │ P3 │
- *   ├────◉────┤P5│  P5 card is turned 90° so      ├────◉────◉────┤
- *   │ P3 │ P4 │  │  the head player reads it      │ P4 │ P5 │ P6 │
- *   └────┴────┴──┘                                └────┴────┴────┘
+ *   6 players: 3 + 3                 ENDS
+ *   ┌────┬────┬────┐                 ┌──┬────┬────┬──┐
+ *   │ P1 │ P2 │ P3 │                 │  │ P1 │ P2 │  │  P5 / P6 cards are
+ *   ├────≡────🎲───┤                 │P6├────≡────🎲P5│  turned 90° for the
+ *   │ P4 │ P5 │ P6 │                 │  │ P3 │ P4 │  │  players at the ends
+ *   └────┴────┴────┘                 └──┴────┴────┴──┘
  *
- *   ◉ = centre button: ≡ menu (✕ in commander damage mode; the menu also
- *       has HIGH ROLL). Every table also has a 🎲 dice button: next to ≡ for
- *       2 players, in the empty seat for 3, between the bottom cards for 4
- *       and 5, and on the second column joint for 6.
+ *   ≡ = Commander menu (✕ in commander damage mode; the menu also has HIGH
+ *   ROLL), 🎲 = Dice page. Top row cards are upside down.
  *
  *  Numbering: top row left to right, then bottom row left to right, then the
- *  head of the table — so 2..4 players keep the seats they had before v0.4.
+ *  head(s) of the table — so 2..4 players keep the seats they had before v0.4.
  *
  *  Card shapes:
  *   compact (tall-ish cards)       wide (2 players, head of table)
@@ -62,14 +68,16 @@ constexpr int HUB_MOAT = 3;    // dark ring around it, separates it from the car
 constexpr int HUB_HIT_R = 22;  // touch radius
 
 struct TableLayout {
-  uint8_t players;
-  Seat    seats[COMMANDER_MAX_PLAYERS];  // seats[i] = player i
-  uint8_t hubCount;
-  HubPos  hubs[MAX_HUBS];
+  uint8_t     players;
+  Seat        seats[COMMANDER_MAX_PLAYERS];  // seats[i] = player i
+  uint8_t     hubCount;
+  HubPos      hubs[MAX_HUBS];
+  const char* name;                          // shown in the layout picker
 };
 
-// Layout for 2..6 players (anything else: the 4-player layout).
-const TableLayout& tableLayout(uint8_t players);
+// Layout `variant` (0..commanderLayoutCount(players)-1, GameState.h) for 2..6
+// players. Anything else: the 4-player layout / variant 0.
+const TableLayout& tableLayout(uint8_t players, uint8_t variant = 0);
 
 // ---- Card coordinates ("local"): as the card's player sees it, (0,0) top-left.
 int16_t seatLocalW(const Seat& s);
@@ -85,6 +93,8 @@ struct CardGeom {
   Rect    minus, plus;       // − / + buttons
   int16_t numCx, numCy;      // centre of the big number's digits
   int16_t numMaxW, numMaxH;  // room for the number (picks the biggest font that fits)
+  Rect    partner;           // commander damage mode, opponent cards: + / x partner button
+  Rect    pillShort;         // ... and the label pill beside it
   int16_t capX, capY;        // small caption: compact = centred at capX, wide = right-aligned at capX
   // touch zones
   int16_t zoneY;             // compact: touches at/below this row hit − (left half) or + (right half)
@@ -100,6 +110,10 @@ inline CardGeom cardGeom(const Seat& s) { return cardGeom(seatLocalW(s), seatLoc
 // True if a rectangle in the seat's card coordinates stays clear of every
 // round button of the table (moat included). Used to shorten captions.
 bool clearOfHubs(const TableLayout& L, const Seat& s, const Rect& local);
+
+// cardGeom() fitted to the table: a wide card's label pill is shortened when
+// a round button sits on that card's edge (6-player ENDS layout).
+CardGeom cardGeom(const TableLayout& L, const Seat& s);
 
 // ---- Touch hit-testing
 // Round button under (x, y), or -1.
@@ -117,10 +131,10 @@ struct Hit {
 };
 constexpr Hit NO_HIT = {Zone::None, 0};
 
-// What a touch at screen (x, y) lands on with `players` at the table.
-// The thin gaps between cards belong to the nearest card; the empty seat of
-// the 3-player layout is NO_HIT.
-Hit commanderHitTest(uint8_t players, int x, int y);
+// What a touch at screen (x, y) lands on with `players` at the table in
+// layout `variant`. The thin gaps between cards belong to the nearest card;
+// the empty seat of the 3-player layouts is NO_HIT.
+Hit commanderHitTest(uint8_t players, int x, int y, uint8_t variant = 0);
 
 // Is a TouchSwipe (screen direction code, see InputEvents.h) a sideways
 // swipe for the player at this seat? (Head-of-table players swipe "sideways"

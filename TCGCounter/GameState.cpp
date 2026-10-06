@@ -13,35 +13,75 @@ static uint8_t clampPlayers(int n) {
   return (uint8_t)n;
 }
 
-void commanderNewGame(CommanderGame& g, uint8_t players) {
+uint8_t commanderLayoutCount(uint8_t players) {
+  static const uint8_t COUNT[COMMANDER_MAX_PLAYERS + 1] = {0, 0, 1, 3, 1, 2, 2};
+  return players <= COMMANDER_MAX_PLAYERS ? COUNT[players] : 0;
+}
+
+static uint8_t clampLayout(uint8_t players, uint8_t layout) {
+  return layout < commanderLayoutCount(players) ? layout : 0;
+}
+
+void commanderNewGame(CommanderGame& g, uint8_t players, uint8_t layout) {
   g.players = clampPlayers(players);
+  g.layout = clampLayout(g.players, layout);
   for (uint8_t i = 0; i < COMMANDER_MAX_PLAYERS; ++i) {  // unused seats too: no stale values
     g.life[i] = COMMANDER_START_LIFE;
-    for (uint8_t j = 0; j < COMMANDER_MAX_PLAYERS; ++j) g.cmdDamage[i][j] = 0;
+    for (uint8_t j = 0; j < COMMANDER_MAX_PLAYERS; ++j) g.cmdDamage[i][j] = g.partnerDamage[i][j] = 0;
   }
+  g.partners = 0;
   g.selected = 0;
+}
+
+bool commanderSetLayout(CommanderGame& g, uint8_t layout) {
+  if (layout >= commanderLayoutCount(g.players) || layout == g.layout) return false;
+  g.layout = layout;
+  return true;
 }
 
 bool commanderIsFresh(const CommanderGame& g) {
   for (uint8_t i = 0; i < g.players; ++i) {
     if (g.life[i] != COMMANDER_START_LIFE) return false;
     for (uint8_t j = 0; j < g.players; ++j)
-      if (g.cmdDamage[i][j] != 0) return false;
+      if (g.cmdDamage[i][j] != 0 || g.partnerDamage[i][j] != 0) return false;
   }
   return true;
 }
 
-bool commanderAdjustCmdDamage(CommanderGame& g, uint8_t victim, uint8_t source, int delta) {
+uint8_t commanderCmdDamage(const CommanderGame& g, uint8_t victim, uint8_t source, uint8_t which) {
+  if (victim >= COMMANDER_MAX_PLAYERS || source >= COMMANDER_MAX_PLAYERS) return 0;
+  return which ? g.partnerDamage[victim][source] : g.cmdDamage[victim][source];
+}
+
+bool commanderAdjustCmdDamage(CommanderGame& g, uint8_t victim, uint8_t source, int delta,
+                              uint8_t which) {
   if (victim >= g.players || source >= g.players || victim == source || delta == 0)
     return false;
-  const int before = g.cmdDamage[victim][source];
+  if (which && !commanderHasPartner(g, source)) return false;
+  uint8_t& d = which ? g.partnerDamage[victim][source] : g.cmdDamage[victim][source];
+  const int before = d;
   int after = before + delta;
   if (after < 0) after = 0;
   if (after > CMD_DAMAGE_MAX) after = CMD_DAMAGE_MAX;
   const int applied = after - before;  // what really changed after clamping
   if (applied == 0) return false;
-  g.cmdDamage[victim][source] = (uint8_t)after;
+  d = (uint8_t)after;
   if (CMD_DAMAGE_AFFECTS_LIFE) g.life[victim] = clampLife((int)g.life[victim] - applied);
+  return true;
+}
+
+bool commanderCanDropPartner(const CommanderGame& g, uint8_t p) {
+  if (p >= COMMANDER_MAX_PLAYERS) return false;
+  for (uint8_t v = 0; v < COMMANDER_MAX_PLAYERS; ++v)
+    if (g.partnerDamage[v][p] != 0) return false;
+  return true;
+}
+
+bool commanderSetPartner(CommanderGame& g, uint8_t p, bool on) {
+  if (p >= g.players || commanderHasPartner(g, p) == on) return false;
+  if (!on && !commanderCanDropPartner(g, p)) return false;
+  if (on) g.partners = (uint8_t)(g.partners | (1u << p));
+  else    g.partners = (uint8_t)(g.partners & ~(1u << p));
   return true;
 }
 
@@ -53,7 +93,8 @@ uint8_t commanderOpponent(uint8_t player, uint8_t index) {
 OutReason commanderOutReason(const CommanderGame& g, uint8_t player, uint8_t* source) {
   if (player >= g.players) return OutReason::None;
   for (uint8_t j = 0; j < g.players; ++j) {
-    if (j != player && g.cmdDamage[player][j] >= CMD_DAMAGE_LETHAL) {
+    if (j != player && (g.cmdDamage[player][j] >= CMD_DAMAGE_LETHAL ||
+                        g.partnerDamage[player][j] >= CMD_DAMAGE_LETHAL)) {
       if (source) *source = j;
       return OutReason::CommanderDamage;
     }
@@ -146,23 +187,32 @@ void appStateSanitize(AppState& s) {
   if (s.screen >= SCREEN_COUNT) s.screen = SCREEN_HOME;
   scoreSanitize(s.riftbound, RIFTBOUND_TARGET);
   scoreSanitize(s.lorcana, LORCANA_TARGET);
-  s.commander.players = clampPlayers(s.commander.players);
-  if (s.commander.selected >= s.commander.players) s.commander.selected = 0;
+  CommanderGame& c = s.commander;
+  c.players = clampPlayers(c.players);
+  c.layout = clampLayout(c.players, c.layout);
+  if (c.selected >= c.players) c.selected = 0;
+  c.partners = (uint8_t)(c.partners & ((1u << COMMANDER_MAX_PLAYERS) - 1));
   for (uint8_t i = 0; i < COMMANDER_MAX_PLAYERS; ++i) {
-    s.commander.life[i] = clampLife(s.commander.life[i]);
+    c.life[i] = clampLife(c.life[i]);
     for (uint8_t j = 0; j < COMMANDER_MAX_PLAYERS; ++j) {
-      uint8_t& d = s.commander.cmdDamage[i][j];
+      uint8_t& d = c.cmdDamage[i][j];
       if (i == j || d > CMD_DAMAGE_MAX) d = 0;
+      uint8_t& pd = c.partnerDamage[i][j];
+      if (i == j || pd > CMD_DAMAGE_MAX) pd = 0;
+      if (pd) c.partners = (uint8_t)(c.partners | (1u << j));  // damage from a partner: it exists
     }
   }
 }
 
 bool operator==(const CommanderGame& a, const CommanderGame& b) {
-  if (a.players != b.players || a.selected != b.selected) return false;
+  if (a.players != b.players || a.layout != b.layout || a.selected != b.selected ||
+      a.partners != b.partners)
+    return false;
   for (uint8_t i = 0; i < COMMANDER_MAX_PLAYERS; ++i) {
     if (a.life[i] != b.life[i]) return false;
     for (uint8_t j = 0; j < COMMANDER_MAX_PLAYERS; ++j)
-      if (a.cmdDamage[i][j] != b.cmdDamage[i][j]) return false;
+      if (a.cmdDamage[i][j] != b.cmdDamage[i][j] || a.partnerDamage[i][j] != b.partnerDamage[i][j])
+        return false;
   }
   return true;
 }

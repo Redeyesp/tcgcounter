@@ -4,8 +4,9 @@ Target: **ESP32-2432S028R "Cheap Yellow Display" (CYD)** + external **EC11 rotar
 
 A tabletop counter with three games on the home menu:
 
-* **COMMANDER** — 2 to 6 players with a table layout for each count (every card faces its
-  player), Lotus-style commander damage, *YOU ARE OUT*;
+* **COMMANDER** — 2 to 6 players, every card facing its player, with a choice of table
+  layouts for 3, 5 and 6 players; Lotus-style commander damage with **Partner** support
+  (two commanders counted apart), *YOU ARE OUT*;
 * **RIFTBOUND** — 1v1 or 4 players free-for-all, first to **8** points, or **2v2** teams to
   **11**; every card has a **+1** "plus life" button (one extra point each);
 * **LORCANA** — 2 or 4 players, first to **20** or **25** lore;
@@ -23,10 +24,10 @@ the screens are rendered off-screen from the real drawing code to check the layo
 the USB-C (ST7789) board.
 
 ![UI preview](docs/ui_preview.png)
-*Rendered from the actual screen code at 2× scale (320×240 panel). Top: the Riftbound menu
-(1v1 / 4P / 2v2), a 4-player Riftbound game (three players took their +1; P4 is at 9 / 8), a
-1v1 Riftbound game (round buttons ≡ 🎲 ↻). Bottom: the Lorcana menu (2 or 4 players, 20 or 25
-lore), a 4-player Lorcana game to 25, a 4-player high roll after a tie was rolled off.*
+*Rendered from the actual screen code at 2× scale (320×240 panel). Top: the 6-player table
+picker (3 + 3 / ENDS), a 6-player ENDS game, commander damage with partners (P1 and P4 have
+two commanders: one number each). Bottom: the 3-player picker (P3 left / middle / right), a
+3-player MIDDLE table, partners on the ENDS table.*
 
 ---
 
@@ -59,9 +60,9 @@ Using it:
 | Where | Touch | Encoder |
 |---|---|---|
 | Home | Tap an entry to open it (**COMMANDER**, **RIFTBOUND**, **LORCANA**, **DICE**) | Turn = move yellow focus · Press = open |
-| Commander menu | **CONTINUE** = back to the running game · **HIGH ROLL** = back to the table and roll for who goes first · **2 3 4 5 6** = new game with that many players (asks first) · **< HOME** = home menu | Turn = move yellow focus · Press = choose |
+| Commander menu | **CONTINUE** = back to the running game · **TABLE** = another layout for the running game (nothing is reset) · **HIGH ROLL** = back to the table and roll for who goes first · **2 3 4 5 6** = new game with that many players (3, 5 and 6 first show the table picker; asks before wiping a game) · **< HOME** = home menu | Turn = move yellow focus · Press = choose · Long-press in the picker = back |
 | Commander | Tap a card = select player · Tap/hold **−**/**+** = life (hold repeats) · **Swipe sideways on a card's number** = commander damage mode for that player · Tap centre **≡** = Commander menu · Tap **🎲** = Dice page | Turn = selected player's life ±1 per click · Press = next player (P1→P2→…→P1) · **Long-press** = commander damage mode for the selected player |
-| Commander damage mode | −/+ on an **opponent's** card = damage that opponent dealt to the victim · −/+ on the victim's card = life · Tap centre **✕**, or swipe the victim's card again = close · Swipe another card = switch player | Turn = damage from the focused opponent · Press = next opponent · Long-press = close |
+| Commander damage mode | −/+ on an **opponent's** card = damage that opponent dealt to the victim · −/+ on the victim's card = life · small **+** on an opponent's card = that player has a **Partner** (then tap the left / right number to pick which commander −/+ count for; **×** takes the partner away while it has dealt no damage) · Tap centre **✕**, or swipe the victim's card again = close · Swipe another card = switch player | Turn = damage from the focused opponent (commander) · Press = next opponent, or its partner · Long-press = close |
 | Dice page | Tap a die (**D4 D6 D8 D12 D20**) = roll it · **BACK** = back to the game · In the popup: **REROLL** · **BACK** = back to the game · tap outside the popup = pick another die. From Home → DICE: the popup's **BACK** = pick another die, **HOME** (top left) = home menu | Turn = move yellow focus · Press = choose · Long-press = back one step |
 | High roll result | Tap anywhere = back to the game (that tap changes nothing) · **≡ → HIGH ROLL** = roll again | Any turn or press = back to the game |
 | Riftbound / Lorcana menu | **CONTINUE** = back to the running game · **HIGH ROLL** · new game: Riftbound **1v1** / **4P** / **2v2**, Lorcana **2P** / **4P** to **20** / **25** (asks first) · **< HOME** | Turn = move yellow focus · Press = choose |
@@ -73,30 +74,44 @@ Because that wipes the running game it asks *NEW GAME? … CANCEL / START* first
 nothing has happened yet in the running game, then there is nothing to lose). The centre
 **≡** in the game brings you back to this menu; **HIGH ROLL** (top right) goes back to the
 table and rolls for who goes first. Lay the device flat in the middle of the
-table — every card is drawn the right way round for the player sitting at that edge:
+table — every card is drawn the right way round for the player sitting at that edge.
+
+**Table layouts.** 3, 5 and 6 players can sit in more than one way, so those numbers first
+open the **table picker** — a small picture of each layout (every seat in its player's
+colour, the light edge is where that player sits). Tap one to start. **TABLE** (next to
+CONTINUE) opens the same picker for the running game and only moves the seats: life totals
+and commander damage stay as they are.
 
 ```
- 2 players            3 players            4 players
- ┌──────────────┐     ┌──────┬──────┐     ┌──────┬──────┐
- │  P1 (far)    │     │  P1  │  P2  │     │  P1  │  P2  │   far side: upside down
- ├─────≡─D──────┤     ├──────≡──────┤     ├──────≡──────┤
- │  P2 (near)   │     │  P3  │  D   │     │  P3  D  P4  │   3 players: one seat left
- └──────────────┘     └──────┴──────┘     └──────┴──────┘   empty (D sits there)
+ 2 players            3 players: LEFT       MIDDLE           RIGHT
+ ┌──────────────┐     ┌──────┬──────┐  ┌──────┬──────┐  ┌──────┬──────┐
+ │  P1 (far)    │     │  P1  │  P2  │  │  P1  D  P2  │  │  P1  │  P2  │  far side:
+ ├─────≡─D──────┤     ├──────≡──────┤  ├──────≡──────┤  ├──────≡──────┤  upside down
+ │  P2 (near)   │     │  P3  │  D   │  │      P3     │  │  D   │  P3  │
+ └──────────────┘     └──────┴──────┘  └─────────────┘  └──────┴──────┘
 
- 5 players (head of table on the right)   6 players
- ┌────┬────┬──┐                           ┌────┬────┬────┐
- │ P1 │ P2 │  │                           │ P1 │ P2 │ P3 │
- ├────≡────┤P5│  P5 is turned sideways    ├────≡────D────┤
- │ P3 D P4 │  │  for the head of table    │ P4 │ P5 │ P6 │
- └────┴────┴──┘                           └────┴────┴────┘
+ 4 players            5 players: HEAD RIGHT     HEAD LEFT
+ ┌──────┬──────┐      ┌────┬────┬──┐            ┌──┬────┬────┐
+ │  P1  │  P2  │      │ P1 │ P2 │  │            │  │ P1 │ P2 │
+ ├──────≡──────┤      ├────≡────┤P5│            │P5├────≡────┤
+ │  P3  D  P4  │      │ P3 D P4 │  │            │  │ P3 D P4 │
+ └──────┴──────┘      └────┴────┴──┘            └──┴────┴────┘
+
+ 6 players: 3 + 3                 ENDS
+ ┌────┬────┬────┐                 ┌──┬────┬────┬──┐
+ │ P1 │ P2 │ P3 │                 │  │ P1 │ P2 │  │
+ ├────≡────D────┤                 │P6├────≡────D P5│
+ │ P4 │ P5 │ P6 │                 │  │ P3 │ P4 │  │
+ └────┴────┴────┘                 └──┴────┴────┴──┘
  ≡ = Commander menu (✕ in commander damage mode)    D = 🎲 Dice page
 ```
 
-The 2-player and head-of-table cards are wide: **−** on the left, **+** on the right, the
-number in between. Narrow cards shorten their labels (`P5` instead of `PLAYER 5`).
-Numbering is top row, then bottom row, then the head of the table, so 2–4 players keep the
-seats they always had. `COMMANDER_FACE_SEATS 0` in `Config.h` draws every card upright for
-someone at the bottom edge instead.
+The 2-player, head-of-table and end cards are wide: **−** on the left, **+** on the right, the
+number in between (head and end cards are turned 90° for the player at that end). Narrow
+cards shorten their labels (`P5` instead of `PLAYER 5`). Numbering is top row, then bottom
+row, then the head(s) of the table, so 2–4 players keep the seats they always had.
+`COMMANDER_FACE_SEATS 0` in `Config.h` draws every card upright for someone at the bottom edge
+instead. The layouts live in `CommanderLayout.cpp`.
 
 **Commander damage (Lotus-style).** Swipe sideways on a player's card (sideways *for that
 player* — the head of the table swipes along the long side of their card), or long-press the
@@ -109,7 +124,17 @@ taking it back returns the life. Close with the centre **✕**, by swiping the s
 just wait 10 s (`CMD_MODE_TIMEOUT_MS`). Back in the normal view a card shows **CMD n** (most
 damage taken from one commander) once that player has taken any.
 
-**YOU ARE OUT.** At **0 life or less**, or **21 commander damage from one player**, the card turns
+**Partner.** A player whose deck has two commanders (Partner) gets them counted apart: in
+commander damage mode tap the small **+** on that player's card (top right of the card, next
+to its label). The card then shows two numbers side by side — `5 | 3` — one per commander;
+tap a number to pick it (bright, with a bar under it) and −/+ count for that one. 21 from
+**either** commander is lethal. The partner belongs to the player, so it shows on their card
+for every victim, and stays for the whole game (a new game clears it). **×** in the same
+place takes the partner away again, but only while it has dealt no damage (dimmed
+otherwise: bring its numbers back to 0 first). With the encoder, a press steps through the
+opponents and their partners.
+
+**YOU ARE OUT.** At **0 life or less**, or **21 commander damage from one commander**, the card turns
 red and shows *YOU ARE OUT*. − / + still work, so a mis-tap can be undone and the player
 "revives" as soon as the numbers are legal again. (Rules live in `GameState.h`: `OUT_AT_LIFE`,
 `CMD_DAMAGE_LETHAL`, `CMD_DAMAGE_AFFECTS_LIFE`.)
@@ -289,11 +314,13 @@ Key design rules:
 |---|---|---|
 | `tcg` | `ver` | schema version (mismatch → defaults, never garbage) |
 | `tcg` | `np` | number of players, 2–6 (missing in saves before v0.4 → 4) |
+| `tcg` | `lay` | table layout for that number of players (v0.10+; missing → the first one) |
 | `tcg` | `p1`…`p6` | Commander life totals |
 | `tcg` | `sel` | selected player |
 | `tcg` | `scr` | last active screen (the device boots back into the game) |
 | `tcg` | `rb`, `lc` | Riftbound / Lorcana, 12 bytes each (v0.9+): cards (2/4), teams, target, scores P1–P4, +1 P1–P4, selected player. v0.5–v0.8 saved 3 bytes (P1, P2, selected): loaded as a 2-player game with the default target. Missing → a fresh 2-player game |
 | `tcg` | `cd` | commander damage, 6×6 bytes `[victim][source]` (v0.2–v0.3 saved 4×4: converted on load, the game is kept; missing in v0.1 saves → all 0) |
+| `tcg` | `cd2`, `pt` | Partner: the partners' commander damage (6×6 bytes) and which players have one (bit mask) (v0.10+; missing → none) |
 | `tcgtouch` | `cal`, `calv` | touch calibration (separate, so a future game reset can't erase it) |
 
 ---
