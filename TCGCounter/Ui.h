@@ -27,3 +27,5 @@ void uiMinus(lgfx::LovyanGFX& c, int cx, int cy, int len, int thick, uint16_t co
 void uiPlus(lgfx::LovyanGFX& c, int cx, int cy, int len, int thick, uint16_t color);
 void uiHomeIcon(lgfx::LovyanGFX& c, int cx, int cy, uint16_t color, uint16_t cutoutColor);
 void uiChevron(lgfx::LovyanGFX& c, int cx, int cy, int size, int thick, bool pointRight, uint16_t color);
+// Straight line of any thickness (filled quad, no anti-aliasing).
+void uiThickLine(lgfx::LovyanGFX& c, int x0, int y0, int x1, int y1, int thick, uint16_t color);

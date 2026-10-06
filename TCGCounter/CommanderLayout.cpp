@@ -14,23 +14,23 @@ constexpr Side TOP = face(Side::Top), BOTTOM = face(Side::Bottom), RIGHT = face(
 const TableLayout LAYOUTS[] = {
   // 2 players: one wide card each, facing each other
   {2, {{{0, 0, 320, 119}, TOP}, {{0, 121, 320, 119}, BOTTOM}},
-   1, {{160, 120}}},
+   2, {{136, 120, HubKind::Menu}, {184, 120, HubKind::HighRoll}}},
   // 3 players: 2x2 grid, bottom-right seat left empty
   {3, {{{0, 0, 159, 119}, TOP}, {{161, 0, 159, 119}, TOP}, {{0, 121, 159, 119}, BOTTOM}},
-   1, {{160, 120}}},
+   2, {{160, 120, HubKind::Menu}, {240, 180, HubKind::HighRoll}}},  // H in the empty seat
   // 4 players: 2x2 grid
   {4, {{{0, 0, 159, 119}, TOP}, {{161, 0, 159, 119}, TOP},
        {{0, 121, 159, 119}, BOTTOM}, {{161, 121, 159, 119}, BOTTOM}},
-   1, {{160, 120}}},
+   2, {{160, 120, HubKind::Menu}, {160, 180, HubKind::HighRoll}}},
   // 5 players: 2x2 grid on the left, head of the table on the right
   {5, {{{0, 0, 119, 119}, TOP}, {{121, 0, 119, 119}, TOP},
        {{0, 121, 119, 119}, BOTTOM}, {{121, 121, 119, 119}, BOTTOM},
        {{242, 0, 78, 240}, RIGHT}},
-   1, {{120, 120}}},
-  // 6 players: three on each long side; a centre button on both column joints
+   2, {{120, 120, HubKind::Menu}, {120, 180, HubKind::HighRoll}}},
+  // 6 players: three on each long side; ≡ and H on the two column joints
   {6, {{{0, 0, 105, 119}, TOP}, {{107, 0, 106, 119}, TOP}, {{215, 0, 105, 119}, TOP},
        {{0, 121, 105, 119}, BOTTOM}, {{107, 121, 106, 119}, BOTTOM}, {{215, 121, 105, 119}, BOTTOM}},
-   2, {{106, 120}, {214, 120}}},
+   2, {{106, 120, HubKind::Menu}, {214, 120, HubKind::HighRoll}}},
 };
 
 constexpr int GAP_SLACK = 2;  // a touch this close to a card (in a gap) still counts for it
@@ -119,6 +119,10 @@ CardGeom cardGeom(int16_t w, int16_t h) {
     g.zoneY = i16(by - 6);
     g.zoneTop = 0;
     g.minusEnd = g.plusStart = i16(w / 2);
+    // D20 between the label and the card's bottom edge
+    g.dieR = 36;
+    g.dieCx = i16(w / 2);
+    g.dieCy = i16(32 + (h - 40) / 2);
   } else {
     const int pillW = w / 2 - 16 < 105 ? w / 2 - 16 : 105;
     g.pill = rect(10, 8, pillW, 20);
@@ -136,8 +140,32 @@ CardGeom cardGeom(int16_t w, int16_t h) {
     g.zoneTop = 30;
     g.minusEnd = i16(10 + bw + 8);
     g.plusStart = i16(w - 10 - bw - 8);
+    // D20 centred; moved right when it would reach the label pill
+    g.dieR = i16((h - 12) / 2 < 40 ? (h - 12) / 2 : 40);
+    g.dieCx = i16(w / 2);
+    g.dieCy = i16(h / 2);
+    const int halfW = g.dieR * 7 / 8 + 4;  // hexagon half-width (~0.866 R) + gap
+    if (g.dieCy - g.dieR < g.pill.y + g.pill.h && g.dieCx - halfW < g.pill.x + g.pill.w)
+      g.dieCx = i16(g.pill.x + g.pill.w + halfW);
   }
   return g;
+}
+
+bool clearOfHubs(const TableLayout& L, const Seat& s, const Rect& local) {
+  int ax, ay, bx, by;
+  localToScreen(s, local.x, local.y, ax, ay);
+  localToScreen(s, local.x + local.w - 1, local.y + local.h - 1, bx, by);
+  const Rect r = rect(ax < bx ? ax : bx, ay < by ? ay : by,
+                      (ax < bx ? bx - ax : ax - bx) + 1, (ay < by ? by - ay : ay - by) + 1);
+  const int keep = HUB_R + HUB_MOAT + 1;
+  for (uint8_t k = 0; k < L.hubCount; ++k) {
+    const int hx = L.hubs[k].x, hy = L.hubs[k].y;
+    const int nx = hx < r.x ? r.x : (hx >= r.x + r.w ? r.x + r.w - 1 : hx);
+    const int ny = hy < r.y ? r.y : (hy >= r.y + r.h ? r.y + r.h - 1 : hy);
+    const int dx = hx - nx, dy = hy - ny;
+    if (dx * dx + dy * dy < keep * keep) return false;
+  }
+  return true;
 }
 
 Hit commanderHitTest(uint8_t players, int x, int y) {

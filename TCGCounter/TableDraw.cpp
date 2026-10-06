@@ -1,5 +1,6 @@
 #include "TableDraw.h"
 #include <stdlib.h>
+#include <stdio.h>
 #include <math.h>
 #include "Theme.h"
 #include "Ui.h"
@@ -34,6 +35,24 @@ void closeIcon(int cx, int cy, uint16_t color) {
     g.drawLine(cx - 7 + t, cy - 7, cx + 7 + t, cy + 7, color);
     g.drawLine(cx - 7 + t, cy + 7, cx + 7 + t, cy - 7, color);
   }
+}
+
+// "H" for high roll.
+void highRollIcon(int cx, int cy, uint16_t color) {
+  auto& g = gfx();
+  g.setFont(theme::fontButton());
+  g.setTextDatum(lgfx::textdatum_t::middle_center);
+  g.setTextColor(color);
+  g.drawString("H", cx, cy + 1);
+  g.drawString("H", cx + 1, cy + 1);  // a little bolder
+}
+
+// RGB565 blend: t = 0 -> a, 255 -> b
+uint16_t mix565(uint16_t a, uint16_t b, uint8_t t) {
+  const int ar = a >> 11, ag = (a >> 5) & 63, ab = a & 31;
+  const int br = b >> 11, bg = (b >> 5) & 63, bb = b & 31;
+  const int r = ar + (br - ar) * t / 255, gg = ag + (bg - ag) * t / 255, bl = ab + (bb - ab) * t / 255;
+  return (uint16_t)((r << 11) | (gg << 5) | bl);
 }
 
 // Circular arrow: a 3 px ring with a gap at the top right, arrow head at the
@@ -93,5 +112,59 @@ void drawHubButton(int x, int y, HubIcon icon, bool pressed) {
     case HubIcon::Close:   closeIcon(x, y, ink); break;
     case HubIcon::Home:    uiHomeIcon(g, x, y + 1, ink, fill); break;
     case HubIcon::Restart: restartIcon(x, y, ink); break;
+    case HubIcon::HighRoll: highRollIcon(x, y, ink); break;
   }
+}
+
+void drawD20(lgfx::LovyanGFX& c, int cx, int cy, int r, DieState state, uint16_t playerColor, uint8_t value) {
+  uint16_t fill, edge, facet, text;
+  switch (state) {
+    case DieState::Winner:
+      fill = theme::ACCENT; edge = mix565(theme::ACCENT, theme::BG, 110);
+      facet = mix565(theme::ACCENT, theme::BG, 70); text = theme::TEXT_ON_ACCENT;
+      break;
+    case DieState::Tied:
+      fill = theme::BUTTON; edge = theme::ACCENT;
+      facet = mix565(theme::ACCENT, theme::BUTTON, 150); text = theme::ACCENT;
+      break;
+    case DieState::Out:
+      fill = theme::PANEL; edge = theme::PANEL_EDGE;
+      facet = mix565(theme::PANEL_EDGE, theme::PANEL, 110); text = theme::TEXT_DIM;
+      break;
+    default:  // Rolling
+      fill = theme::BUTTON; edge = playerColor;
+      facet = mix565(playerColor, theme::BUTTON, 150); text = theme::TEXT;
+      break;
+  }
+  // Pointy-top hexagon = the die's outline; a triangle in the middle = the
+  // face towards you; lines from its corners to the outline = the side faces.
+  int hx[6], hy[6], tx[3], ty[3];
+  const float ri = r * 0.6f;
+  for (int k = 0; k < 6; ++k) {
+    const float a = (90.0f + 60.0f * k) * 3.14159265f / 180.0f;
+    hx[k] = cx + (int)lroundf(r * cosf(a));
+    hy[k] = cy - (int)lroundf(r * sinf(a));
+    if (k % 2 == 0) {
+      tx[k / 2] = cx + (int)lroundf(ri * cosf(a));
+      ty[k / 2] = cy - (int)lroundf(ri * sinf(a));
+    }
+  }
+  for (int k = 0; k < 6; ++k) c.fillTriangle(cx, cy, hx[k], hy[k], hx[(k + 1) % 6], hy[(k + 1) % 6], fill);
+  for (int k = 0; k < 3; ++k) {
+    const int v = 2 * k;  // hexagon corner straight out from this triangle corner
+    uiThickLine(c, tx[k], ty[k], hx[v], hy[v], 2, facet);
+    uiThickLine(c, tx[k], ty[k], hx[(v + 1) % 6], hy[(v + 1) % 6], 2, facet);
+    uiThickLine(c, tx[k], ty[k], hx[(v + 5) % 6], hy[(v + 5) % 6], 2, facet);
+    uiThickLine(c, tx[k], ty[k], tx[(k + 1) % 3], ty[(k + 1) % 3], 2, facet);
+  }
+  for (int k = 0; k < 6; ++k) uiThickLine(c, hx[k], hy[k], hx[(k + 1) % 6], hy[(k + 1) % 6], 3, edge);
+
+  char num[4];
+  snprintf(num, sizeof(num), "%u", (unsigned)value);
+  c.setFont(r >= 30 ? theme::fontTitle() : theme::fontButton());
+  c.setTextDatum(lgfx::textdatum_t::middle_center);
+  c.setTextColor(text);
+  const int ny = cy + r / 10;  // the face triangle is wider below its centre
+  c.drawString(num, cx, ny);
+  c.drawString(num, cx + 1, ny);
 }

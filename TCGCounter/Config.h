@@ -16,7 +16,7 @@
  * ==========================================================================*/
 
 #define FW_NAME     "TCG Counter"
-#define FW_VERSION  "0.5.1"
+#define FW_VERSION  "0.6.0"
 
 /* ============================================================================
  *  1. ROTARY ENCODER (EC11 with push switch)
@@ -155,6 +155,10 @@
 #define TOUCH_SWIPE_MIN_PX       40   // horizontal travel that counts as a swipe
 #define TOUCH_MOVE_CANCEL_PX     18   // movement that stops hold-to-repeat (it's a swipe)
 #define CMD_MODE_TIMEOUT_MS      10000 // commander-damage mode closes after this idle time (0 = never)
+#define HIGHROLL_ROLL_MS         1500 // high roll: how long the D20 faces keep changing
+#define HIGHROLL_FLIP_FAST_MS    50   //   face change interval at the start ...
+#define HIGHROLL_FLIP_SLOW_MS    220  //   ... slowing down to this just before landing
+#define HIGHROLL_TIE_MS          1100 //   pause showing a tie before the tied players roll again
 #define COMMANDER_FACE_SEATS     1    // 1 = every card faces the player at its table edge
                                       //     (top row upside down, head of table sideways)
                                       // 0 = all cards upright for someone at the bottom edge

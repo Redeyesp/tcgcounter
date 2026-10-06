@@ -40,7 +40,7 @@ void uiHomeIcon(lgfx::LovyanGFX& g, int cx, int cy, uint16_t color, uint16_t cut
 }
 
 // Thick line as a filled quad (two triangles), no anti-aliasing / no reads.
-static void thickLine(lgfx::LovyanGFX& g, int x0, int y0, int x1, int y1, int thick, uint16_t color) {
+void uiThickLine(lgfx::LovyanGFX& g, int x0, int y0, int x1, int y1, int thick, uint16_t color) {
   const float dx = (float)(x1 - x0), dy = (float)(y1 - y0);
   const float len = sqrtf(dx * dx + dy * dy);
   if (len < 0.5f) return;
@@ -57,7 +57,7 @@ void uiChevron(lgfx::LovyanGFX& g, int cx, int cy, int size, int thick, bool poi
   const int h = size / 2;
   const int dir = pointRight ? 1 : -1;
   const int tipX = cx + dir * h / 2, backX = cx - dir * h / 2;
-  thickLine(g, backX, cy - h, tipX, cy, thick, color);
-  thickLine(g, tipX, cy, backX, cy + h, thick, color);
+  uiThickLine(g, backX, cy - h, tipX, cy, thick, color);
+  uiThickLine(g, tipX, cy, backX, cy + h, thick, color);
   g.fillCircle(tipX, cy, thick / 2, color);  // round the joint
 }

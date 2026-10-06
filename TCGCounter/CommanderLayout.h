@@ -23,9 +23,10 @@
  *   │ P3 │ P4 │  │  the head player reads it      │ P4 │ P5 │ P6 │
  *   └────┴────┴──┘                                └────┴────┴────┘
  *
- *   ◉ = centre button (menu, or ✕ in commander damage mode). Six players get
- *       two of them (the middle cards' labels sit where one centre button
- *       would go); both do the same thing.
+ *   ◉ = centre button: ≡ menu (✕ in commander damage mode). Every table also
+ *       has an H button (high roll): next to ≡ for 2 players, in the empty
+ *       seat for 3, between the bottom cards for 4 and 5, and on the second
+ *       column joint for 6.
  *
  *  Numbering: top row left to right, then bottom row left to right, then the
  *  head of the table — so 2..4 players keep the seats they had before v0.4.
@@ -52,7 +53,8 @@ struct Seat {
   Side side;  // which way the card faces
 };
 
-struct HubPos { int16_t x, y; };  // centre button(s), screen coordinates
+enum class HubKind : uint8_t { Menu, HighRoll };
+struct HubPos { int16_t x, y; HubKind kind; };  // round buttons, screen coordinates
 
 constexpr uint8_t MAX_HUBS = 2;
 constexpr int HUB_R = 19;      // drawn radius
@@ -89,9 +91,15 @@ struct CardGeom {
   int16_t zoneTop;           // wide: touches above this row are the label area
   int16_t minusEnd;          // wide: touches left of this column hit −
   int16_t plusStart;         // wide: touches at/right of this column hit +
+  // high roll: the D20 drawn in place of the number and the − / + buttons
+  int16_t dieCx, dieCy, dieR;
 };
 CardGeom cardGeom(int16_t w, int16_t h);
 inline CardGeom cardGeom(const Seat& s) { return cardGeom(seatLocalW(s), seatLocalH(s)); }
+
+// True if a rectangle in the seat's card coordinates stays clear of every
+// round button of the table (moat included). Used to shorten captions.
+bool clearOfHubs(const TableLayout& L, const Seat& s, const Rect& local);
 
 // ---- Touch hit-testing
 enum class Zone : uint8_t { None, Area, Minus, Plus, Hub };

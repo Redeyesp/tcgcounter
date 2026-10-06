@@ -7,7 +7,7 @@
  *  │ ┌──┐                            ┌──┐ │  P1, upside down for the player
  *  │ │+ │          3 /8              │− │ │  across the table
  *  │ └──┘        PLAYER 1            └──┘ │
- *  ├────────────(⌂)──────(↻)──────────────┤  ⌂ = Home   ↻ = Restart
+ *  ├──────────(⌂)───(H)───(↻)─────────────┤  ⌂ = Home  H = high roll  ↻ = Restart
  *  │ ┌──┐        PLAYER 2            ┌──┐ │
  *  │ │− │          5 /8              │+ │ │  P2
  *  │ └──┘                            └──┘ │
@@ -15,6 +15,8 @@
  *
  *  Touch:   tap/hold − / + = score (hold repeats) · tap a card = select it
  *           ⌂ = Home · ↻ = Restart (asks first; both back to 0)
+ *           H = high roll: both cards show a D20 that spins and lands, the
+ *           higher roll turns gold (a tie rolls again); tap to go back
  *  Encoder: turn = selected player's score · press = other player
  *           long-press = Restart (asks first)
  *  Reaching the target turns the card gold: WINNER!  − still works, so a
@@ -26,6 +28,7 @@
 #include "GameState.h"
 #include "CommanderLayout.h"
 #include "TableDraw.h"
+#include "HighRoll.h"
 #include "Theme.h"
 #include "Ui.h"
 #include "UiConfirm.h"
@@ -65,10 +68,11 @@ constexpr int  NUM_MAX_W = PLUS_ZONE_START - MINUS_ZONE_END - 4;
 // Centre buttons on the line between the cards. The card rows above the
 // digits (0..22) stay empty there, so the buttons never cover a number.
 constexpr int HUB_Y = 120;
-constexpr int HOME_X = 120, RESTART_X = 200;
+constexpr int HOME_X = 100, ROLL_X = 160, RESTART_X = 220;
+constexpr int DIE_CY = 58, DIE_R = 34;   // high roll: D20 rows 24..92, clear of the buttons and the caption
 
 // ---------------------------------------------------------------- hit test
-enum class Zone : uint8_t { None, Area, Minus, Plus, Home, Restart };
+enum class Zone : uint8_t { None, Area, Minus, Plus, Home, Roll, Restart };
 struct Hit {
   Zone    zone;
   uint8_t player;
@@ -82,6 +86,7 @@ bool inHub(int x, int y, int hx) {
 
 Hit hitTest(int x, int y) {
   if (inHub(x, y, HOME_X)) return {Zone::Home, 0};
+  if (inHub(x, y, ROLL_X)) return {Zone::Roll, 0};
   if (inHub(x, y, RESTART_X)) return {Zone::Restart, 0};
   const uint8_t p = y >= HUB_Y ? 1 : 0;  // the 2 px gap belongs to the nearer card
   int lx, ly;
@@ -94,14 +99,20 @@ Hit hitTest(int x, int y) {
 // ---------------------------------------------------------------- UI-only state
 Hit           s_press = NO_HIT;
 ConfirmDialog s_restart;
+HighRoll      s_roll;
+
+uint8_t rollD20() { return (uint8_t)random(1, HIGHROLL_SIDES + 1); }  // hardware RNG on the ESP32
 
 struct CardView {
   uint8_t score;
   bool    won;
   bool    highlight;
   Zone    pressed;  // Minus / Plus / None
+  DieState die;     // high roll running: how this player's D20 looks
+  uint8_t  face;
   bool operator==(const CardView& o) const {
-    return score == o.score && won == o.won && highlight == o.highlight && pressed == o.pressed;
+    return score == o.score && won == o.won && highlight == o.highlight && pressed == o.pressed &&
+           die == o.die && face == o.face;
   }
   bool operator!=(const CardView& o) const { return !(*this == o); }
 };
@@ -118,6 +129,9 @@ CardView viewOf(uint8_t p) {
   v.highlight = (g.selected == p);
   const bool onButton = s_press.zone == Zone::Minus || s_press.zone == Zone::Plus;
   v.pressed = (onButton && s_press.player == p) ? s_press.zone : Zone::None;
+  v.die = highRollDie(s_roll, p);
+  v.face = v.die != DieState::None ? s_roll.value[p] : 0;
+  if (v.die != DieState::None) v.pressed = Zone::None;
   return v;
 }
 
@@ -147,10 +161,35 @@ void drawButton(lgfx::LovyanGFX& c, int ox, int oy, uint8_t p, Zone which, bool 
   else                      uiPlus(c, ox + r.cx(), oy + r.cy(), 26, 5, sym);
 }
 
+// High roll: the D20 replaces the score and the − / + buttons.
+void paintRoll(lgfx::LovyanGFX& c, int ox, int oy, uint8_t p, const CardView& v) {
+  const bool won = v.die == DieState::Winner;
+  c.fillRect(ox, oy, CARD_W, CARD_H, theme::BG);
+  c.fillRoundRect(ox, oy, CARD_W, CARD_H, FRAME_R, won ? theme::WIN_PANEL : theme::PANEL);
+  if (won) uiRoundFrame(c, ox, oy, CARD_W, CARD_H, FRAME_R, FRAME_THICK, theme::ACCENT);
+  else     uiRoundFrame(c, ox, oy, CARD_W, CARD_H, FRAME_R, 1, theme::PANEL_EDGE);
+  drawD20(c, ox + NUM_CX, oy + DIE_CY, DIE_R, v.die, theme::PLAYER[p], v.face);
+  char cap[12];
+  c.setTextDatum(lgfx::textdatum_t::middle_center);
+  c.setFont(theme::fontLabel());
+  if (won) {
+    snprintf(cap, sizeof(cap), "HIGH ROLL!");
+    c.setTextColor(theme::ACCENT);
+  } else if (v.die == DieState::Tied) {
+    snprintf(cap, sizeof(cap), "TIE!");
+    c.setTextColor(theme::ACCENT);
+  } else {
+    snprintf(cap, sizeof(cap), "PLAYER %u", (unsigned)(p + 1));
+    c.setTextColor(theme::PLAYER[p]);
+  }
+  c.drawString(cap, ox + NUM_CX, oy + CAPTION_Y);
+}
+
 void paintCard(lgfx::LovyanGFX& c, int ox, int oy, const void* ctx) {
   const CardJob& j = *static_cast<const CardJob*>(ctx);
   const CardView& v = *j.v;
   const uint8_t p = j.p;
+  if (v.die != DieState::None) { paintRoll(c, ox, oy, p, v); return; }
 
   c.fillRect(ox, oy, CARD_W, CARD_H, theme::BG);
   c.fillRoundRect(ox, oy, CARD_W, CARD_H, FRAME_R, v.won ? theme::WIN_PANEL : theme::PANEL);
@@ -204,16 +243,48 @@ void drawCard(uint8_t p, const CardView& v) {
 
 void drawHubs(Zone pressed) {
   drawHubButton(HOME_X, HUB_Y, HubIcon::Home, pressed == Zone::Home);
+  drawHubButton(ROLL_X, HUB_Y, HubIcon::HighRoll, pressed == Zone::Roll);
   drawHubButton(RESTART_X, HUB_Y, HubIcon::Restart, pressed == Zone::Restart);
+}
+
+void startHighRoll() { highRollStart(s_roll, SCORE_PLAYERS, millis(), rollD20); }
+
+// While a high roll is on screen: nothing works until the dice land; then
+// any touch or encoder action goes back to the scores, and H rolls again.
+void handleRollInput(const InputEvent& e) {
+  if (highRollBusy(s_roll)) { s_press = NO_HIT; return; }
+  switch (e.type) {
+    case InputType::TouchDown: {
+      const Hit h = hitTest(e.x, e.y);
+      s_press = h.zone == Zone::Roll ? h : NO_HIT;
+      if (h.zone != Zone::Roll) highRollStop(s_roll);  // this touch only closes the result
+      break;
+    }
+    case InputType::TouchUp: {
+      const Hit released = s_press;
+      s_press = NO_HIT;
+      if (released.zone == Zone::Roll && isTap(e, TOUCH_TAP_MAX_MS)) startHighRoll();
+      break;
+    }
+    case InputType::EncoderTurn:
+    case InputType::EncoderClick:
+    case InputType::EncoderLongPress:
+      highRollStop(s_roll);
+      break;
+    default:
+      break;
+  }
 }
 
 // ---------------------------------------------------------------- module functions
 void onEnter() {
   s_press = NO_HIT;
   s_restart.close();
+  highRollStop(s_roll);
 }
 
 void handleInput(const InputEvent& e) {
+  if (highRollActive(s_roll)) { handleRollInput(e); return; }
   if (s_restart.isOpen()) {
     if (s_restart.handleInput(e) == ConfirmResult::Confirm) scoreNewGame(mode().game());
     return;
@@ -245,6 +316,7 @@ void handleInput(const InputEvent& e) {
       s_press = NO_HIT;
       if (!isTap(e, TOUCH_TAP_MAX_MS)) break;
       if (released.zone == Zone::Home) goToScreen(SCREEN_HOME);
+      else if (released.zone == Zone::Roll) startHighRoll();
       else if (released.zone == Zone::Restart) askRestart();
       break;
     }
@@ -264,7 +336,8 @@ void render(bool full) {
   full = full || pageChanged;  // back from the question: repaint the table
 
   auto& g = gfx();
-  const Zone hubPressed = (s_press.zone == Zone::Home || s_press.zone == Zone::Restart) ? s_press.zone : Zone::None;
+  const bool onHub = s_press.zone == Zone::Home || s_press.zone == Zone::Roll || s_press.zone == Zone::Restart;
+  const Zone hubPressed = onHub ? s_press.zone : Zone::None;
   bool hubDirty = full || hubPressed != s_drawnHubPressed;
   bool started = false;
   if (full) {
@@ -288,7 +361,11 @@ void render(bool full) {
   if (started) g.endWrite();
 }
 
+void tick(uint32_t now) {
+  if (highRollActive(s_roll)) highRollUpdate(s_roll, now, rollD20);
+}
+
 }  // namespace
 
-const ScreenModule RiftboundScreen = {"Riftbound", onEnter, handleInput, render, nullptr};
-const ScreenModule LorcanaScreen   = {"Lorcana", onEnter, handleInput, render, nullptr};
+const ScreenModule RiftboundScreen = {"Riftbound", onEnter, handleInput, render, tick};
+const ScreenModule LorcanaScreen   = {"Lorcana", onEnter, handleInput, render, tick};

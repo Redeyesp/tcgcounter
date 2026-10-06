@@ -32,6 +32,11 @@
  *  (COMMANDER_FACE_SEATS); its touch points are turned the same way, and
  *  "sideways" swipes are sideways for that player.
  *
+ *  High roll: tap H (every table has one) — every player's card shows a D20
+ *  whose face changes fast, slows down and lands. Highest roll = gold card;
+ *  players tied for the top roll again by themselves. Tap anywhere (or use
+ *  the encoder) to go back to the life totals; tap H again to roll again.
+ *
  *  Commander damage also costs life (CMD_DAMAGE_AFFECTS_LIFE, like Lotus).
  *  OUT (life <= 0, or 21+ from one commander): red card, "YOU ARE OUT";
  *  − / + keep working so mistakes can be undone.
@@ -42,6 +47,7 @@
 #include "GameState.h"
 #include "CommanderLayout.h"
 #include "TableDraw.h"
+#include "HighRoll.h"
 #include "Theme.h"
 #include "Ui.h"
 #include "Config.h"
@@ -61,6 +67,8 @@ int8_t   s_victim = NONE;    // commander damage mode: whose damage is shown (NO
 uint8_t  s_focus  = 0;       // damage mode: opponent the encoder adjusts
 uint32_t s_modeUsedAt = 0;   // damage mode: last interaction (auto-close)
 
+HighRoll s_roll;             // high roll (who goes first)
+
 bool cmdMode() { return s_victim != NONE; }
 
 void touchMode() { s_modeUsedAt = millis(); }
@@ -73,6 +81,13 @@ void enterCmdMode(uint8_t victim) {
 }
 
 void exitCmdMode() { s_victim = NONE; }
+
+uint8_t rollD20() { return (uint8_t)random(1, HIGHROLL_SIDES + 1); }  // hardware RNG on the ESP32
+
+void startHighRoll() {
+  exitCmdMode();
+  highRollStart(s_roll, g_state.commander.players, millis(), rollD20);
+}
 
 void nextFocus() {  // cycle the encoder focus through the victim's opponents
   const uint8_t n = g_state.commander.players;
@@ -115,9 +130,12 @@ struct CardView {
   uint8_t   cmdMax;     // Life cards: biggest damage from one commander (badge)
   bool      highlight;  // thick coloured border
   Zone      pressed;    // Minus / Plus / None
+  DieState  die;        // high roll running: how this player's D20 looks
+  uint8_t   face;       // high roll: number on the D20
   bool operator==(const CardView& o) const {
     return role == o.role && victim == o.victim && value == o.value && out == o.out &&
-           cmdMax == o.cmdMax && highlight == o.highlight && pressed == o.pressed;
+           cmdMax == o.cmdMax && highlight == o.highlight && pressed == o.pressed &&
+           die == o.die && face == o.face;
   }
   bool operator!=(const CardView& o) const { return !(*this == o); }
 };
@@ -144,10 +162,14 @@ CardView viewOf(uint8_t i) {
   }
   const bool onButton = s_press.zone == Zone::Minus || s_press.zone == Zone::Plus;
   v.pressed = (onButton && s_press.index == i) ? s_press.zone : Zone::None;
+  v.die = highRollDie(s_roll, i);
+  v.face = v.die != DieState::None ? s_roll.value[i] : 0;
+  if (v.die != DieState::None) v.pressed = Zone::None;
   return v;
 }
 
 CardView s_drawn[COMMANDER_MAX_PLAYERS];
+const Seat* s_paintSeat = nullptr;  // seat of the card being painted (caption vs round buttons)
 int8_t   s_drawnHubPressed = NONE;  // centre button drawn pressed (index), NONE = none
 bool     s_drawnCmdMode = false;
 
@@ -180,13 +202,27 @@ void labelText(lgfx::LovyanGFX& c, const CardGeom& g, uint8_t i, const CardView&
   if (shortSource) *shortSource = v.role == Role::Source && !victimShown;
 }
 
-// Caption text: the long form if it fits its slot, else the short one.
-const char* fitCaption(lgfx::LovyanGFX& c, const CardGeom& g, const lgfx::IFont* font,
-                       const char* longText, const char* shortText) {
-  // compact: centred inside the card; wide: right-aligned, must not reach the label pill
+// Does this caption fit its slot without reaching the label pill or the
+// table's round buttons? (compact: centred; wide: right-aligned)
+bool captionFits(lgfx::LovyanGFX& c, const CardGeom& g, const lgfx::IFont* font, const char* text) {
   const int room = g.wide ? g.capX - (g.pill.x + g.pill.w) - 10 : g.w - 16;
   c.setFont(font);
-  return c.textWidth(longText) <= room ? longText : shortText;
+  const int w = c.textWidth(text);
+  const Rect r = {(int16_t)(g.wide ? g.capX - w : g.capX - w / 2), (int16_t)(g.capY - 8), (int16_t)w, 16};
+  return w <= room && (!s_paintSeat || clearOfHubs(table(), *s_paintSeat, r));
+}
+
+// Caption text: the first option that fits, else the last (shortest) one.
+const char* fitCaption(lgfx::LovyanGFX& c, const CardGeom& g, const lgfx::IFont* font,
+                       const char* longText, const char* shortText, const char* shortest = nullptr) {
+  const char* options[3] = {longText, shortText, shortest};
+  const char* last = longText;
+  for (const char* t : options) {
+    if (!t) continue;
+    last = t;
+    if (captionFits(c, g, font, t)) return t;
+  }
+  return last;
 }
 
 const theme::NumberFont& pickNumberFont(lgfx::LovyanGFX& c, const char* text, int maxW, int maxH) {
@@ -273,7 +309,8 @@ void drawCenter(lgfx::LovyanGFX& c, int ox, int oy, const CardGeom& g, uint8_t i
       c.setFont(g.numMaxH >= 60 ? theme::fontHuge() : theme::fontTitle());
       c.drawString("OUT", cx, cy);
       c.drawString("OUT", cx + 1, cy);
-      drawCaption(c, ox, oy, g, "YOU ARE", theme::fontLabel(), theme::TEXT);
+      drawCaption(c, ox, oy, g, fitCaption(c, g, theme::fontLabel(), "YOU ARE", "YOU ARE"),
+                  theme::fontLabel(), theme::TEXT);
     }
     return;
   }
@@ -282,12 +319,14 @@ void drawCenter(lgfx::LovyanGFX& c, int ox, int oy, const CardGeom& g, uint8_t i
   const theme::NumberFont& f = pickNumberFont(c, num, g.numMaxW, g.numMaxH);
   drawDigits(c, f, num, cx, cy, lgfx::textdatum_t::top_center, theme::TEXT);
   if (v.role == Role::Victim) {
-    drawCaption(c, ox, oy, g, fitCaption(c, g, theme::fontSmall(), "CMD DAMAGE", "CMD DMG"),
+    drawCaption(c, ox, oy, g, fitCaption(c, g, theme::fontSmall(), "CMD DAMAGE", "CMD DMG", "DMG"),
                 theme::fontSmall(), theme::TEXT_DIM);
   } else if (v.cmdMax > 0) {
-    char buf[12];
+    char buf[12], shortBuf[6];
     snprintf(buf, sizeof(buf), "CMD %u", (unsigned)v.cmdMax);
-    drawCaption(c, ox, oy, g, buf, theme::fontSmall(), theme::TEXT_DIM);
+    snprintf(shortBuf, sizeof(shortBuf), "%u", (unsigned)v.cmdMax);
+    drawCaption(c, ox, oy, g, fitCaption(c, g, theme::fontSmall(), buf, shortBuf), theme::fontSmall(),
+                theme::TEXT_DIM);
   }
 }
 
@@ -327,7 +366,40 @@ void drawButton(lgfx::LovyanGFX& c, int ox, int oy, const CardGeom& g, uint8_t i
   else                      uiPlus(c, b.cx(), b.cy(), len, thick, sym);
 }
 
+// High roll: the D20 replaces the number and the − / + buttons.
+void drawRollContent(lgfx::LovyanGFX& c, int ox, int oy, const CardGeom& g, uint8_t i, const CardView& v) {
+  const bool won = v.die == DieState::Winner;
+  c.fillRect(ox, oy, g.w, g.h, theme::BG);
+  c.fillRoundRect(ox, oy, g.w, g.h, FRAME_R, won ? theme::WIN_PANEL : theme::PANEL);
+  if (won) uiRoundFrame(c, ox, oy, g.w, g.h, FRAME_R, FRAME_THICK, theme::ACCENT);
+  else     uiRoundFrame(c, ox, oy, g.w, g.h, FRAME_R, 1, theme::PANEL_EDGE);
+  CardView label = v;  // plain player label; filled in the player's colour for the winner
+  label.role = Role::Life;
+  label.highlight = won;
+  drawLabel(c, ox, oy, g, i, label);
+  drawD20(c, ox + g.dieCx, oy + g.dieCy, g.dieR, v.die, theme::PLAYER[i], v.face);
+  if (g.wide && (won || v.die == DieState::Tied)) {  // wide cards have a free caption corner
+    const char* options[] = {"HIGH ROLL!", "TOP ROLL!", "WIN!"};
+    const char* cap = nullptr;
+    if (!won) {
+      cap = "TIE!";
+    } else {
+      // the longest text that fits its slot, misses the round buttons and the die
+      const int dieRight = g.dieCx + g.dieR * 7 / 8 + 4;
+      const int dieTop = g.dieCy - g.dieR, dieBottom = g.dieCy + g.dieR;
+      for (const char* t : options) {
+        c.setFont(theme::fontLabel());
+        const int left = g.capX - c.textWidth(t);
+        const bool hitsDie = left < dieRight && g.capY - 8 < dieBottom && g.capY + 8 > dieTop;
+        if (!hitsDie && captionFits(c, g, theme::fontLabel(), t)) { cap = t; break; }
+      }
+    }
+    if (cap) drawCaption(c, ox, oy, g, cap, theme::fontLabel(), theme::ACCENT);
+  }
+}
+
 void drawCardContent(lgfx::LovyanGFX& c, int ox, int oy, const CardGeom& g, uint8_t i, const CardView& v) {
+  if (v.die != DieState::None) { drawRollContent(c, ox, oy, g, i, v); return; }
   c.fillRect(ox, oy, g.w, g.h, theme::BG);
   c.fillRoundRect(ox, oy, g.w, g.h, FRAME_R, cardBg(v));
   drawFrame(c, ox, oy, g, i, v);
@@ -349,20 +421,54 @@ void drawCard(uint8_t i, const CardView& v) {
   const Seat& s = table().seats[i];
   const CardGeom g = cardGeom(s);
   const CardJob job = {&g, i, &v};
+  s_paintSeat = &s;
   drawSeatCard(s, paintCard, &job);  // off-screen, turned to face the player, one copy
+  s_paintSeat = nullptr;
 }
 
 void drawHub(const HubPos& h, bool pressed) {
-  drawHubButton(h.x, h.y, cmdMode() ? HubIcon::Close : HubIcon::Menu, pressed);
+  HubIcon icon = HubIcon::HighRoll;
+  if (h.kind == HubKind::Menu) icon = cmdMode() ? HubIcon::Close : HubIcon::Menu;
+  drawHubButton(h.x, h.y, icon, pressed);
+}
+
+// While a high roll is on screen: nothing works until the dice land; then
+// any touch or encoder action goes back to the game, and H rolls again.
+void handleRollInput(const InputEvent& e) {
+  if (highRollBusy(s_roll)) { s_press = NO_HIT; return; }
+  switch (e.type) {
+    case InputType::TouchDown: {
+      const Hit h = commanderHitTest(g_state.commander.players, e.x, e.y);
+      const bool onH = h.zone == Zone::Hub && table().hubs[h.index].kind == HubKind::HighRoll;
+      s_press = onH ? h : NO_HIT;
+      if (!onH) highRollStop(s_roll);  // this touch is used up: it only closes the result
+      break;
+    }
+    case InputType::TouchUp: {
+      const Hit released = s_press;
+      s_press = NO_HIT;
+      if (released.zone == Zone::Hub && isTap(e, TOUCH_TAP_MAX_MS)) startHighRoll();
+      break;
+    }
+    case InputType::EncoderTurn:
+    case InputType::EncoderClick:
+    case InputType::EncoderLongPress:
+      highRollStop(s_roll);
+      break;
+    default:
+      break;
+  }
 }
 
 // ---------------------------------------------------------------- module functions
 void onEnter() {
   s_press = NO_HIT;
   exitCmdMode();  // always come back to the normal life view
+  highRollStop(s_roll);
 }
 
 void handleInput(const InputEvent& e) {
+  if (highRollActive(s_roll)) { handleRollInput(e); return; }
   CommanderGame& game = g_state.commander;
   switch (e.type) {
     case InputType::EncoderTurn:
@@ -411,8 +517,9 @@ void handleInput(const InputEvent& e) {
       const Hit released = s_press;
       s_press = NO_HIT;
       if (released.zone == Zone::Hub && isTap(e, TOUCH_TAP_MAX_MS)) {
-        if (cmdMode()) exitCmdMode();                   // centre ✕ closes damage mode
-        else goToScreen(SCREEN_COMMANDER_SETUP);        // centre ≡ opens the Commander menu
+        if (table().hubs[released.index].kind == HubKind::HighRoll) startHighRoll();  // H
+        else if (cmdMode()) exitCmdMode();         // centre ✕ closes damage mode
+        else goToScreen(SCREEN_COMMANDER_SETUP);   // centre ≡ opens the Commander menu
       }
       break;
     }
@@ -420,6 +527,7 @@ void handleInput(const InputEvent& e) {
 }
 
 void tick(uint32_t now) {
+  if (highRollActive(s_roll)) { highRollUpdate(s_roll, now, rollD20); return; }
   if (!cmdMode() || CMD_MODE_TIMEOUT_MS == 0) return;
   const bool holding = s_press.zone != Zone::None;
   if (!holding && now - s_modeUsedAt >= (uint32_t)CMD_MODE_TIMEOUT_MS) exitCmdMode();
