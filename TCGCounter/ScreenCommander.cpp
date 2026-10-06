@@ -14,7 +14,8 @@
  *  Normal mode
  *    Touch:   tap a card = select · tap/hold −/+ = life (hold repeats)
  *             swipe sideways on a card's number = commander damage mode for that player
- *             tap centre ≡ = Commander menu (player count, new game, home)
+ *             tap centre ≡ = Commander menu (high roll, player count, new game, home)
+ *             tap 🎲 = Dice page
  *    Encoder: turn = selected player's life · press = next player
  *             long-press = commander damage mode for the selected player
  *
@@ -32,10 +33,13 @@
  *  (COMMANDER_FACE_SEATS); its touch points are turned the same way, and
  *  "sideways" swipes are sideways for that player.
  *
- *  High roll: tap H (every table has one) — every player's card shows a D20
- *  whose face changes fast, slows down and lands. Highest roll = gold card;
+ *  Dice: the 🎲 round button (every table has one) opens the Dice page on top
+ *  of the game (D4..D20, REROLL); its BACK returns here unchanged.
+ *
+ *  High roll: ≡ menu -> HIGH ROLL — every player's card shows a D20 whose
+ *  face changes fast, slows down and lands. Highest roll = gold card;
  *  players tied for the top roll again by themselves. Tap anywhere (or use
- *  the encoder) to go back to the life totals; tap H again to roll again.
+ *  the encoder) to go back to the life totals.
  *
  *  Commander damage also costs life (CMD_DAMAGE_AFFECTS_LIFE, like Lotus).
  *  OUT (life <= 0, or 21+ from one commander): red card, "YOU ARE OUT";
@@ -48,6 +52,7 @@
 #include "CommanderLayout.h"
 #include "TableDraw.h"
 #include "HighRoll.h"
+#include "UiDice.h"
 #include "Theme.h"
 #include "Ui.h"
 #include "Config.h"
@@ -68,6 +73,9 @@ uint8_t  s_focus  = 0;       // damage mode: opponent the encoder adjusts
 uint32_t s_modeUsedAt = 0;   // damage mode: last interaction (auto-close)
 
 HighRoll s_roll;             // high roll (who goes first)
+DiceOverlay s_dice;          // Dice page on top of the table
+bool     s_drawnDice = false;
+bool     s_rollOnEnter = false;  // the menu asked for a high roll
 
 bool cmdMode() { return s_victim != NONE; }
 
@@ -427,29 +435,20 @@ void drawCard(uint8_t i, const CardView& v) {
 }
 
 void drawHub(const HubPos& h, bool pressed) {
-  HubIcon icon = HubIcon::HighRoll;
+  HubIcon icon = HubIcon::Dice;
   if (h.kind == HubKind::Menu) icon = cmdMode() ? HubIcon::Close : HubIcon::Menu;
   drawHubButton(h.x, h.y, icon, pressed);
 }
 
 // While a high roll is on screen: nothing works until the dice land; then
-// any touch or encoder action goes back to the game, and H rolls again.
+// the first touch or encoder action only goes back to the game.
 void handleRollInput(const InputEvent& e) {
   if (highRollBusy(s_roll)) { s_press = NO_HIT; return; }
   switch (e.type) {
-    case InputType::TouchDown: {
-      const Hit h = commanderHitTest(g_state.commander.players, e.x, e.y);
-      const bool onH = h.zone == Zone::Hub && table().hubs[h.index].kind == HubKind::HighRoll;
-      s_press = onH ? h : NO_HIT;
-      if (!onH) highRollStop(s_roll);  // this touch is used up: it only closes the result
-      break;
-    }
-    case InputType::TouchUp: {
-      const Hit released = s_press;
+    case InputType::TouchDown:
       s_press = NO_HIT;
-      if (released.zone == Zone::Hub && isTap(e, TOUCH_TAP_MAX_MS)) startHighRoll();
+      highRollStop(s_roll);  // this touch is used up: it only closes the result
       break;
-    }
     case InputType::EncoderTurn:
     case InputType::EncoderClick:
     case InputType::EncoderLongPress:
@@ -464,10 +463,16 @@ void handleRollInput(const InputEvent& e) {
 void onEnter() {
   s_press = NO_HIT;
   exitCmdMode();  // always come back to the normal life view
+  s_dice.close();
   highRollStop(s_roll);
+  if (s_rollOnEnter) {  // ≡ menu -> HIGH ROLL
+    s_rollOnEnter = false;
+    startHighRoll();
+  }
 }
 
 void handleInput(const InputEvent& e) {
+  if (s_dice.isOpen()) { s_dice.handleInput(e); return; }  // BACK closes it: the table repaints
   if (highRollActive(s_roll)) { handleRollInput(e); return; }
   CommanderGame& game = g_state.commander;
   switch (e.type) {
@@ -517,7 +522,10 @@ void handleInput(const InputEvent& e) {
       const Hit released = s_press;
       s_press = NO_HIT;
       if (released.zone == Zone::Hub && isTap(e, TOUCH_TAP_MAX_MS)) {
-        if (table().hubs[released.index].kind == HubKind::HighRoll) startHighRoll();  // H
+        if (table().hubs[released.index].kind == HubKind::Dice) {  // 🎲
+          exitCmdMode();
+          s_dice.open();
+        }
         else if (cmdMode()) exitCmdMode();         // centre ✕ closes damage mode
         else goToScreen(SCREEN_COMMANDER_SETUP);   // centre ≡ opens the Commander menu
       }
@@ -527,6 +535,7 @@ void handleInput(const InputEvent& e) {
 }
 
 void tick(uint32_t now) {
+  if (s_dice.isOpen()) { s_dice.tick(now); return; }
   if (highRollActive(s_roll)) { highRollUpdate(s_roll, now, rollD20); return; }
   if (!cmdMode() || CMD_MODE_TIMEOUT_MS == 0) return;
   const bool holding = s_press.zone != Zone::None;
@@ -534,6 +543,12 @@ void tick(uint32_t now) {
 }
 
 void render(bool full) {
+  const bool dice = s_dice.isOpen();
+  const bool pageChanged = dice != s_drawnDice;
+  s_drawnDice = dice;
+  if (dice) { s_dice.render(full || pageChanged); return; }
+  full = full || pageChanged;  // back from the Dice page: repaint the table
+
   auto& g = gfx();
   const TableLayout& L = table();
   const int8_t hubPressed = (s_press.zone == Zone::Hub) ? (int8_t)s_press.index : NONE;
@@ -565,3 +580,5 @@ void render(bool full) {
 }  // namespace
 
 const ScreenModule CommanderScreen = {"Commander", onEnter, handleInput, render, tick};
+
+void commanderRequestHighRoll() { s_rollOnEnter = true; }

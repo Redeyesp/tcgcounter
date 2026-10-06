@@ -12,7 +12,7 @@ static const ScreenModule& moduleFor(Screen s) {
     case SCREEN_COMMANDER_SETUP: return CommanderSetupScreen;
     case SCREEN_RIFTBOUND: return RiftboundScreen;
     case SCREEN_LORCANA:   return LorcanaScreen;
-    // SCREEN_DICE: reserved (off the menu since v0.5) -> Home
+    case SCREEN_DICE:      return DiceScreen;
     case SCREEN_HOME:
     default:               return HomeScreen;
   }

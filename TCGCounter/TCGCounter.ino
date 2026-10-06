@@ -3,8 +3,8 @@
  *  Target: ESP32-2432S028R "Cheap Yellow Display" + external EC11 encoder
  *
  *  Commander (2-6 players, commander damage), Riftbound (to 8) and
- *  Lorcana (to 20) counters, a High Roll (D20) on every game screen and a
- *  Dice page (D4..D20) that opens in the middle of a game.
+ *  Lorcana (to 20) counters, a High Roll (D20) in every game's menu and a
+ *  Dice page (D4..D20): the 🎲 button on every table, or DICE on Home.
  *
  *  All GPIO numbers live in Config.h. This file only wires the modules
  *  together; each module is described at the top of its own header.

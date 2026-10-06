@@ -9,10 +9,10 @@ A tabletop counter with three games on the home menu:
 * **RIFTBOUND** — 2 players, first to **8** points;
 * **LORCANA** — 2 players, first to **20** lore;
 
-plus a **High Roll** button (**H**) on every game screen to decide who goes first and a
-**Dice** page (D4 / D6 / D8 / D12 / D20) you can open in the middle of a game, with touch
-and encoder working at the same time, and every game saved to flash so it survives
-power-off.
+plus **High Roll** in every game's **≡** menu to decide who goes first, and a **Dice** page
+(D4 / D6 / D8 / D12 / D20) behind the round **🎲** button on every game table and as **DICE**
+on the home menu, with touch and encoder working at the same time, and every game saved to
+flash so it survives power-off.
 
 **Build status:** compiles with zero warnings in the project code on Arduino-ESP32 core
 **2.0.17** (what PlatformIO uses; tested with LovyanGFX 1.2.0 and 1.2.32) and **3.3.12**
@@ -22,9 +22,10 @@ the screens are rendered off-screen from the real drawing code to check the layo
 the USB-C (ST7789) board.
 
 ![UI preview](docs/ui_preview.png)
-*Rendered from the actual screen code at 2× scale (320×240 panel). Top: home menu, Riftbound
-(round buttons ⌂ H 🎲 ↻), the Dice page. Bottom: a D20 and a D12 landed in the roll popup, and
-a 4-player Commander high roll after a tie was rolled off.*
+*Rendered from the actual screen code at 2× scale (320×240 panel). Top: home menu (with
+DICE), Riftbound (round buttons ≡ 🎲 ↻), Riftbound's ≡ menu. Bottom: the Commander menu with
+HIGH ROLL, a 4-player Commander high roll after a tie was rolled off (≡ and 🎲 in the
+middle), a D20 landed in the roll popup.*
 
 ---
 
@@ -56,36 +57,37 @@ Using it:
 
 | Where | Touch | Encoder |
 |---|---|---|
-| Home | Tap an entry to open it | Turn = move yellow focus · Press = open |
-| Commander menu | **CONTINUE** = back to the running game · **2 3 4 5 6** = new game with that many players (asks first) · **DICE** = Dice page · **HOME** | Turn = move yellow focus · Press = choose |
-| Commander | Tap a card = select player · Tap/hold **−**/**+** = life (hold repeats) · **Swipe sideways on a card's number** = commander damage mode for that player · Tap centre **≡** = Commander menu · Tap **H** = high roll | Turn = selected player's life ±1 per click · Press = next player (P1→P2→…→P1) · **Long-press** = commander damage mode for the selected player |
+| Home | Tap an entry to open it (**COMMANDER**, **RIFTBOUND**, **LORCANA**, **DICE**) | Turn = move yellow focus · Press = open |
+| Commander menu | **CONTINUE** = back to the running game · **HIGH ROLL** = back to the table and roll for who goes first · **2 3 4 5 6** = new game with that many players (asks first) · **< HOME** = home menu | Turn = move yellow focus · Press = choose |
+| Commander | Tap a card = select player · Tap/hold **−**/**+** = life (hold repeats) · **Swipe sideways on a card's number** = commander damage mode for that player · Tap centre **≡** = Commander menu · Tap **🎲** = Dice page | Turn = selected player's life ±1 per click · Press = next player (P1→P2→…→P1) · **Long-press** = commander damage mode for the selected player |
 | Commander damage mode | −/+ on an **opponent's** card = damage that opponent dealt to the victim · −/+ on the victim's card = life · Tap centre **✕**, or swipe the victim's card again = close · Swipe another card = switch player | Turn = damage from the focused opponent · Press = next opponent · Long-press = close |
-| Dice page | Tap a die (**D4 D6 D8 D12 D20**) = roll it · **BACK** = back to the game · In the popup: **REROLL** · **BACK** = back to the game · tap outside the popup = pick another die | Turn = move yellow focus · Press = choose · Long-press = back one step |
-| High roll result | Tap anywhere = back to the game (that tap changes nothing) · **H** = roll again | Any turn or press = back to the game |
-| Riftbound / Lorcana | Tap/hold **−**/**+** = score (hold repeats) · Tap a card = select · Centre **⌂** = Home · **H** = high roll · **🎲** = Dice page · Centre **↻** = Restart (asks first) | Turn = selected player's score · Press = other player · Long-press = Restart (asks first) |
+| Dice page | Tap a die (**D4 D6 D8 D12 D20**) = roll it · **BACK** = back to the game · In the popup: **REROLL** · **BACK** = back to the game · tap outside the popup = pick another die. From Home → DICE: the popup's **BACK** = pick another die, **HOME** (top left) = home menu | Turn = move yellow focus · Press = choose · Long-press = back one step |
+| High roll result | Tap anywhere = back to the game (that tap changes nothing) · **≡ → HIGH ROLL** = roll again | Any turn or press = back to the game |
+| Riftbound / Lorcana | Tap/hold **−**/**+** = score (hold repeats) · Tap a card = select · Centre **≡** = menu (**CONTINUE** / **HIGH ROLL** / **HOME**) · **🎲** = Dice page · Centre **↻** = Restart (asks first) | Turn = selected player's score · Press = other player · Long-press = Restart (asks first) · In the ≡ menu: turn = focus, press = choose, long-press = continue |
 
 **Players and seating (2–6).** Home → **COMMANDER** opens the Commander menu. **CONTINUE**
 goes back to the game in progress; a number starts a **new game** for that many players.
 Because that wipes the running game it asks *NEW GAME? … CANCEL / START* first (unless
 nothing has happened yet in the running game, then there is nothing to lose). The centre
-**≡** in the game brings you back to this menu. Lay the device flat in the middle of the
+**≡** in the game brings you back to this menu; **HIGH ROLL** (top right) goes back to the
+table and rolls for who goes first. Lay the device flat in the middle of the
 table — every card is drawn the right way round for the player sitting at that edge:
 
 ```
  2 players            3 players            4 players
  ┌──────────────┐     ┌──────┬──────┐     ┌──────┬──────┐
  │  P1 (far)    │     │  P1  │  P2  │     │  P1  │  P2  │   far side: upside down
- ├─────≡─H──────┤     ├──────≡──────┤     ├──────≡──────┤
- │  P2 (near)   │     │  P3  │  H   │     │  P3  H  P4  │   3 players: one seat left
- └──────────────┘     └──────┴──────┘     └──────┴──────┘   empty (H sits there)
+ ├─────≡─D──────┤     ├──────≡──────┤     ├──────≡──────┤
+ │  P2 (near)   │     │  P3  │  D   │     │  P3  D  P4  │   3 players: one seat left
+ └──────────────┘     └──────┴──────┘     └──────┴──────┘   empty (D sits there)
 
  5 players (head of table on the right)   6 players
  ┌────┬────┬──┐                           ┌────┬────┬────┐
  │ P1 │ P2 │  │                           │ P1 │ P2 │ P3 │
- ├────≡────┤P5│  P5 is turned sideways    ├────≡────H────┤
- │ P3 H P4 │  │  for the head of table    │ P4 │ P5 │ P6 │
+ ├────≡────┤P5│  P5 is turned sideways    ├────≡────D────┤
+ │ P3 D P4 │  │  for the head of table    │ P4 │ P5 │ P6 │
  └────┴────┴──┘                           └────┴────┴────┘
- ≡ = Commander menu (✕ in commander damage mode)    H = high roll
+ ≡ = Commander menu (✕ in commander damage mode)    D = 🎲 Dice page
 ```
 
 The 2-player and head-of-table cards are wide: **−** on the left, **+** on the right, the
@@ -113,27 +115,30 @@ red and shows *YOU ARE OUT*. − / + still work, so a mis-tap can be undone and 
 **Riftbound and Lorcana.** Two cards facing each other (the far player's is upside down),
 each with **−** on the left, **+** on the right and the score with its target (`5 /8`,
 `12 /20`). Scores stop at 0 and at the target; reaching the target turns the card gold with
-**WINNER!** (− still works to fix a mis-tap). The two round buttons on the centre line are
-**⌂ Home** and **↻ Restart**. Restart asks *RESTART? … CANCEL / RESTART* and then puts both
+**WINNER!** (− still works to fix a mis-tap). The three round buttons on the centre line are
+**≡ menu**, **🎲 Dice** and **↻ Restart**. The ≡ menu has **CONTINUE**, **HIGH ROLL** and
+**HOME**. Restart asks *RESTART? … CANCEL / RESTART* and then puts both
 players back to 0 (no question when it is already 0 : 0). Each game keeps its own score, so
 you can leave a Riftbound game, play Commander, and come back to it. The targets are
 `RIFTBOUND_TARGET` and `LORCANA_TARGET` in `GameState.h`.
 
-**High Roll (who goes first).** Tap **H** on any game screen. Every player's card turns into a
+**High Roll (who goes first).** Open the game's **≡** menu and choose **HIGH ROLL** (top right
+of the Commander menu; the middle entry in Riftbound/Lorcana). Every player's card turns into a
 D20 whose face changes fast, slows down and lands on a real roll (the ESP32's hardware random
 generator). The highest roll turns gold. If several players share the top number they're
 marked **TIE** and only they roll again, until there is one winner. While the dice roll,
 touches and the encoder are ignored. Afterwards the first tap anywhere, or any encoder action,
-goes back to the game, and that tap does nothing else. Tap **H** again to re-roll. Life totals
+goes back to the game, and that tap does nothing else. **≡ → HIGH ROLL** again re-rolls. Life totals
 and scores are never touched. Timing: `HIGHROLL_ROLL_MS`, `HIGHROLL_TIE_MS` in `Config.h`.
 
-**Dice.** In the middle of a game open the Dice page: the **🎲** button on Riftbound/Lorcana,
-or **≡ → DICE** in Commander. Pick **D4, D6, D8, D12 or D20**. A popup shows that die
+**Dice.** In the middle of a game tap the round **🎲** button on the table (every game has
+it), or open **DICE** on the home menu. Pick **D4, D6, D8, D12 or D20**. A popup shows that die
 (triangle, cube, diamond, pentagon or hexagon) with its face changing fast. It slows down,
 then lands in gold on a real roll from the ESP32's random generator (`DICE_ROLL_MS` sets how
 long). Then **REROLL** rolls the same die again, and **BACK** returns to exactly where the
 game was. Tapping outside the popup goes back to the dice choice. The game itself is never
-changed. (Dice is no longer on the home menu: it lives inside the games.)
+changed. Opened from the home menu there is no game behind it: the popup's **BACK** goes to
+the dice choice, and **HOME** (top left of the choice) goes back to the home menu.
 
 **New game / reset** only exists in the Commander menu and always goes through the
 *NEW GAME?* question (CANCEL is pre-selected for the encoder). Picking the same number of
@@ -221,6 +226,7 @@ tcgcounter/
     ├── CommanderLayout.h/.cpp    table layouts for 2-6 players, card geometry, touch mapping
     ├── ScreenCommander.cpp   life counter + commander damage, draws the layout's cards
     ├── ScreenScore.cpp       Riftbound + Lorcana: 2-player score race with Restart
+    ├── ScreenDice.cpp        Home -> DICE: the Dice page on its own
     ├── HighRoll.h/.cpp       high roll logic: D20 per player, tie-breaks (no drawing)
     ├── TableDraw.h/.cpp      cards that face their player (off-screen, rotated), round buttons, dice shapes
     ├── UiConfirm.h/.cpp      full-screen CANCEL / OK question (new game, restart)
@@ -474,8 +480,8 @@ anything different:
 |---|---|---|
 | 1 | `GameState.h` | Add the new state as a member of `AppState`, update `operator==`, `appStateSetDefaults()` and `appStateSanitize()` in `GameState.cpp`. Rules go in `GameState.cpp` or a new file — no drawing there. |
 | 2 | `ScreenXxx.cpp` (new) | Implement `onEnter`, `handleInput`, `render` (and `tick` for timers) and define `const ScreenModule XxxScreen = {...};`. `ScreenScore.cpp` is the simplest template: diff-based rendering, cards via `TableDraw`, `ConfirmDialog` for resets, `DiceOverlay` for dice, `HighRoll` for who goes first. |
-| 3 | `GameState.h`, `Screens.h`, `App.cpp` | Add a `Screen` value **at the end** of the enum (values are stored in flash — never renumber; `SCREEN_DICE` = 2 stays reserved), declare the module and return it in `moduleFor()`. |
-| 4 | `ScreenHome.cpp` | Add the menu entry (four entries need `ITEM_H` / `ITEM_PITCH` re-spaced to fit 240 px). |
+| 3 | `GameState.h`, `Screens.h`, `App.cpp` | Add a `Screen` value **at the end** of the enum (values are stored in flash — never renumber), declare the module and return it in `moduleFor()`. |
+| 4 | `ScreenHome.cpp` | Add the menu entry (the four entries fill the 240 px screen — a fifth needs `ITEM_H` / `ITEM_PITCH` re-spaced). |
 | 5 | `AppStorage.cpp` | Add NVS keys for the new state in `loadState()` and `writeState()`. |
 
 More Commander counters (poison, energy, tax) belong in `CommanderGame` in `GameState.h` and,
@@ -509,7 +515,7 @@ mode. Screens can also implement the optional `tick()` hook in `ScreenModule` fo
 | Image mirrored | Wrong driver for the panel (try the other one) |
 | Touch works but is offset | Re-calibrate; tap arrow tips precisely |
 | Phantom touches | Raise `TOUCH_MIN_PRESSURE` (try 3–6) |
-| Centre ≡ / H / 🎲 / ⌂ / ↻ / menu entry doesn't react | Tap and release within 1.2 s — longer presses are ignored on purpose (`TOUCH_TAP_MAX_MS`) |
+| Centre ≡ / 🎲 / ↻ / ✕ / menu entry doesn't react | Tap and release within 1.2 s — longer presses are ignored on purpose (`TOUCH_TAP_MAX_MS`) |
 | Random player switching | Switch pin floating → pull-up missing |
 | No serial output | Monitor at 115200; `DEBUG_LOG 1` in `Config.h` |
 | Build error mentioning `Config.h` | The encoder pin check — read the message, change the pin |

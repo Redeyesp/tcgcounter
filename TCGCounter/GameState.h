@@ -13,7 +13,7 @@
 enum Screen : uint8_t {
   SCREEN_HOME      = 0,
   SCREEN_COMMANDER = 1,
-  SCREEN_DICE      = 2,  // reserved: Dice was taken off the menu in v0.5 (loads as Home)
+  SCREEN_DICE      = 2,  // Home -> DICE (dice page on its own; back on the menu since v0.8)
   SCREEN_RIFTBOUND = 3,
   SCREEN_COMMANDER_SETUP = 4,  // player count / continue / new game (v0.4+)
   SCREEN_LORCANA   = 5,        // v0.5+

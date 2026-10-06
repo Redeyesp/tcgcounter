@@ -65,8 +65,9 @@ void paintDie(lgfx::LovyanGFX& c, int ox, int oy, const void* ctx) {
 
 }  // namespace
 
-void DiceOverlay::open() {
+void DiceOverlay::open(bool standalone) {
   open_ = true;
+  standalone_ = standalone;
   popup_ = false;
   rolling_ = false;
   pressed_ = -1;
@@ -152,6 +153,7 @@ DiceResult DiceOverlay::handleInput(const InputEvent& e) {
     default: break;
   }
   if (chosen == POP_REROLL) startRoll(sides_);
+  else if (chosen == POP_BACK && standalone_) popup_ = false;  // pick another die
   else if (chosen == POP_BACK) { open_ = false; return DiceResult::Back; }
   return DiceResult::None;
 }
@@ -172,7 +174,7 @@ void DiceOverlay::drawChooserButton(int8_t i) {
     uiChevron(g, r.x + 18, r.cy(), 14, 3, false, theme::TEXT);
     g.setFont(theme::fontLabel());
     g.setTextDatum(lgfx::textdatum_t::middle_left);
-    g.drawString("BACK", r.x + 32, r.cy() + 1);
+    g.drawString(standalone_ ? "HOME" : "BACK", r.x + 32, r.cy() + 1);
     return;
   }
   const uint8_t sides = DICE[i - 1];

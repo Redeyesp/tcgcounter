@@ -23,10 +23,10 @@
  *   │ P3 │ P4 │  │  the head player reads it      │ P4 │ P5 │ P6 │
  *   └────┴────┴──┘                                └────┴────┴────┘
  *
- *   ◉ = centre button: ≡ menu (✕ in commander damage mode). Every table also
- *       has an H button (high roll): next to ≡ for 2 players, in the empty
- *       seat for 3, between the bottom cards for 4 and 5, and on the second
- *       column joint for 6.
+ *   ◉ = centre button: ≡ menu (✕ in commander damage mode; the menu also
+ *       has HIGH ROLL). Every table also has a 🎲 dice button: next to ≡ for
+ *       2 players, in the empty seat for 3, between the bottom cards for 4
+ *       and 5, and on the second column joint for 6.
  *
  *  Numbering: top row left to right, then bottom row left to right, then the
  *  head of the table — so 2..4 players keep the seats they had before v0.4.
@@ -53,7 +53,7 @@ struct Seat {
   Side side;  // which way the card faces
 };
 
-enum class HubKind : uint8_t { Menu, HighRoll };
+enum class HubKind : uint8_t { Menu, Dice };
 struct HubPos { int16_t x, y; HubKind kind; };  // round buttons, screen coordinates
 
 constexpr uint8_t MAX_HUBS = 2;

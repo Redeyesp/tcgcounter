@@ -118,7 +118,7 @@ void appStateSetDefaults(AppState& s) {
 }
 
 void appStateSanitize(AppState& s) {
-  if (s.screen >= SCREEN_COUNT || s.screen == SCREEN_DICE) s.screen = SCREEN_HOME;
+  if (s.screen >= SCREEN_COUNT) s.screen = SCREEN_HOME;
   scoreSanitize(s.riftbound, RIFTBOUND_TARGET);
   scoreSanitize(s.lorcana, LORCANA_TARGET);
   s.commander.players = clampPlayers(s.commander.players);

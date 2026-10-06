@@ -21,6 +21,8 @@
  *
  *  The owning screen opens it, hands it input / tick / render while
  *  isOpen(), and returns to its game when handleInput() says Back.
+ *  Standalone (Home -> DICE): the popup's BACK goes to the chooser instead,
+ *  and only the chooser's BACK leaves.
  * ==========================================================================*/
 #include <stdint.h>
 #include "InputEvents.h"
@@ -29,7 +31,7 @@ enum class DiceResult : uint8_t { None, Back };
 
 class DiceOverlay {
  public:
-  void open();                      // shows the chooser
+  void open(bool standalone = false);  // shows the chooser
   void close() { open_ = false; }
   bool isOpen() const { return open_; }
 
@@ -52,6 +54,7 @@ class DiceOverlay {
   void drawPopupDie();
 
   bool     open_ = false;
+  bool     standalone_ = false;
   bool     popup_ = false;
   bool     needFull_ = false;
   uint8_t  sides_ = 20;

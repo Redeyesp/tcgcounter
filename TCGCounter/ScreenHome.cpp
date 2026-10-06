@@ -1,5 +1,5 @@
 /* ============================================================================
- *  ScreenHome — main menu: COMMANDER / RIFTBOUND / LORCANA.
+ *  ScreenHome — main menu: COMMANDER / RIFTBOUND / LORCANA / DICE.
  *
  *  Touch:   tap an entry to open it.
  *  Encoder: turn moves the yellow focus frame, press opens the focused entry.
@@ -25,10 +25,11 @@ const MenuItem ITEMS[] = {
   {"COMMANDER", SCREEN_COMMANDER_SETUP, true},  // menu first: players / continue / new game
   {"RIFTBOUND", SCREEN_RIFTBOUND,       true},  // 2 players, first to 8
   {"LORCANA",   SCREEN_LORCANA,         true},  // 2 players, first to 20 lore
+  {"DICE",      SCREEN_DICE,            true},  // D4..D20 on their own
 };
 constexpr int8_t ITEM_COUNT = sizeof(ITEMS) / sizeof(ITEMS[0]);
 
-constexpr int ITEM_X = 16, ITEM_W = 288, ITEM_H = 56, ITEM_Y0 = 44, ITEM_PITCH = 64;
+constexpr int ITEM_X = 16, ITEM_W = 288, ITEM_H = 44, ITEM_Y0 = 42, ITEM_PITCH = 49;  // 4 entries
 
 Rect itemRect(int8_t i) { return Rect{ITEM_X, (int16_t)(ITEM_Y0 + i * ITEM_PITCH), ITEM_W, ITEM_H}; }
 

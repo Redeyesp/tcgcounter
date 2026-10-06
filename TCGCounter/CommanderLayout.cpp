@@ -14,23 +14,23 @@ constexpr Side TOP = face(Side::Top), BOTTOM = face(Side::Bottom), RIGHT = face(
 const TableLayout LAYOUTS[] = {
   // 2 players: one wide card each, facing each other
   {2, {{{0, 0, 320, 119}, TOP}, {{0, 121, 320, 119}, BOTTOM}},
-   2, {{136, 120, HubKind::Menu}, {184, 120, HubKind::HighRoll}}},
+   2, {{136, 120, HubKind::Menu}, {184, 120, HubKind::Dice}}},
   // 3 players: 2x2 grid, bottom-right seat left empty
   {3, {{{0, 0, 159, 119}, TOP}, {{161, 0, 159, 119}, TOP}, {{0, 121, 159, 119}, BOTTOM}},
-   2, {{160, 120, HubKind::Menu}, {240, 180, HubKind::HighRoll}}},  // H in the empty seat
+   2, {{160, 120, HubKind::Menu}, {240, 180, HubKind::Dice}}},  // 🎲 in the empty seat
   // 4 players: 2x2 grid
   {4, {{{0, 0, 159, 119}, TOP}, {{161, 0, 159, 119}, TOP},
        {{0, 121, 159, 119}, BOTTOM}, {{161, 121, 159, 119}, BOTTOM}},
-   2, {{160, 120, HubKind::Menu}, {160, 180, HubKind::HighRoll}}},
+   2, {{160, 120, HubKind::Menu}, {160, 180, HubKind::Dice}}},
   // 5 players: 2x2 grid on the left, head of the table on the right
   {5, {{{0, 0, 119, 119}, TOP}, {{121, 0, 119, 119}, TOP},
        {{0, 121, 119, 119}, BOTTOM}, {{121, 121, 119, 119}, BOTTOM},
        {{242, 0, 78, 240}, RIGHT}},
-   2, {{120, 120, HubKind::Menu}, {120, 180, HubKind::HighRoll}}},
-  // 6 players: three on each long side; ≡ and H on the two column joints
+   2, {{120, 120, HubKind::Menu}, {120, 180, HubKind::Dice}}},
+  // 6 players: three on each long side; ≡ and 🎲 on the two column joints
   {6, {{{0, 0, 105, 119}, TOP}, {{107, 0, 106, 119}, TOP}, {{215, 0, 105, 119}, TOP},
        {{0, 121, 105, 119}, BOTTOM}, {{107, 121, 106, 119}, BOTTOM}, {{215, 121, 105, 119}, BOTTOM}},
-   2, {{106, 120, HubKind::Menu}, {214, 120, HubKind::HighRoll}}},
+   2, {{106, 120, HubKind::Menu}, {214, 120, HubKind::Dice}}},
 };
 
 constexpr int GAP_SLACK = 2;  // a touch this close to a card (in a gap) still counts for it
