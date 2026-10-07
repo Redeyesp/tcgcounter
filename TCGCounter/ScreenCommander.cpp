@@ -2,6 +2,10 @@
  *  ScreenCommander — life counter for 2..6 players with Lotus-style
  *  commander damage. Where the cards sit: CommanderLayout.h.
  *
+ *  STANDARD (MTG 1v1, 20 life) runs on this table too, with its own game
+ *  (g_state.standard): the 2-player table, life only — no commander damage
+ *  mode (swipe and encoder long-press do nothing), ≡ opens the Standard menu.
+ *
  *  NORMAL MODE (4 players)             COMMANDER DAMAGE MODE (P1 swiped)
  *  ┌──────────┬──────────┐             ┌──────────┬──────────┐
  *  │ PLAYER 1 │ PLAYER 2 │             │ PLAYER 1 │ P2 -> P1 │  P1's card: P1's life
@@ -67,7 +71,12 @@ namespace {
 constexpr int FRAME_R = 10;     // card corner radius
 constexpr int FRAME_THICK = 4;  // highlight border thickness
 
-const TableLayout& table() { return tableLayout(g_state.commander.players, g_state.commander.layout); }
+// Standard (MTG 1v1, 20 life) runs on this table too: its own game, always
+// 2 cards, no commander damage. Which one is shown follows g_state.screen.
+bool standard() { return g_state.screen == SCREEN_STANDARD; }
+CommanderGame& game() { return standard() ? g_state.standard : g_state.commander; }
+
+const TableLayout& table() { return tableLayout(game().players, game().layout); }
 
 // ---------------------------------------------------------------- UI-only state
 constexpr int8_t NONE = -1;
@@ -91,7 +100,7 @@ void enterCmdMode(uint8_t victim) {
   s_victim = (int8_t)victim;
   s_focus = commanderOpponent(victim, 0);
   for (uint8_t& sel : s_partnerSel) sel = 0;
-  commanderSelect(g_state.commander, victim);
+  commanderSelect(game(), victim);
   touchMode();
 }
 
@@ -101,20 +110,20 @@ uint8_t rollD20() { return (uint8_t)random(1, HIGHROLL_SIDES + 1); }  // hardwar
 
 void startHighRoll() {
   exitCmdMode();
-  highRollStart(s_roll, g_state.commander.players, millis(), rollD20);
+  highRollStart(s_roll, game().players, millis(), rollD20);
 }
 
 uint8_t pickedCommander(uint8_t p) {  // 0, or 1 = the partner (if p has one)
-  return commanderHasPartner(g_state.commander, p) ? s_partnerSel[p] : 0;
+  return commanderHasPartner(game(), p) ? s_partnerSel[p] : 0;
 }
 
 // cycle the encoder focus through the victim's opponents (and their partners)
 void nextFocus() {
-  if (pickedCommander(s_focus) == 0 && commanderHasPartner(g_state.commander, s_focus)) {
+  if (pickedCommander(s_focus) == 0 && commanderHasPartner(game(), s_focus)) {
     s_partnerSel[s_focus] = 1;
     return;
   }
-  const uint8_t n = g_state.commander.players;
+  const uint8_t n = game().players;
   for (uint8_t k = 1; k <= n; ++k) {
     const uint8_t p = (uint8_t)((s_focus + k) % n);
     if (p != (uint8_t)s_victim) { s_focus = p; s_partnerSel[p] = 0; return; }
@@ -122,9 +131,9 @@ void nextFocus() {
 }
 
 void togglePartner(uint8_t p) {
-  CommanderGame& game = g_state.commander;
-  if (commanderSetPartner(game, p, !commanderHasPartner(game, p))) {
-    s_partnerSel[p] = commanderHasPartner(game, p) ? 1 : 0;  // a new partner: ready to count
+  CommanderGame& gm = game();
+  if (commanderSetPartner(gm, p, !commanderHasPartner(gm, p))) {
+    s_partnerSel[p] = commanderHasPartner(gm, p) ? 1 : 0;  // a new partner: ready to count
     s_focus = p;
   }
   touchMode();
@@ -132,19 +141,19 @@ void togglePartner(uint8_t p) {
 
 // −/+ on card p (or encoder on the selected / focused card)
 void adjustCard(uint8_t p, int delta) {
-  CommanderGame& game = g_state.commander;
+  CommanderGame& gm = game();
   if (cmdMode() && p != (uint8_t)s_victim) {
     // p (its commander or partner) dealt damage to the victim
-    commanderAdjustCmdDamage(game, (uint8_t)s_victim, p, delta, pickedCommander(p));
+    commanderAdjustCmdDamage(gm, (uint8_t)s_victim, p, delta, pickedCommander(p));
     s_focus = p;
   } else {
-    commanderAdjustLife(game, p, delta);
+    commanderAdjustLife(gm, p, delta);
   }
   if (cmdMode()) touchMode();
 }
 
 uint8_t biggestCmdDamage(uint8_t p) {  // from one commander (partners count apart)
-  const CommanderGame& g = g_state.commander;
+  const CommanderGame& g = game();
   uint8_t m = 0;
   for (uint8_t j = 0; j < g.players; ++j) {
     if (j == p) continue;
@@ -186,7 +195,7 @@ struct CardView {
 };
 
 CardView viewOf(uint8_t i) {
-  const CommanderGame& g = g_state.commander;
+  const CommanderGame& g = game();
   CardView v;
   v.victim = cmdMode() ? (uint8_t)s_victim : 0;
   v.out = commanderOutReason(g, i);
@@ -601,24 +610,24 @@ void onEnter() {
 void handleInput(const InputEvent& e) {
   if (s_dice.isOpen()) { s_dice.handleInput(e); return; }  // BACK closes it: the table repaints
   if (highRollActive(s_roll)) { handleRollInput(e); return; }
-  CommanderGame& game = g_state.commander;
+  CommanderGame& gm = game();
   switch (e.type) {
     case InputType::EncoderTurn:
-      adjustCard(cmdMode() ? s_focus : game.selected, e.delta);
+      adjustCard(cmdMode() ? s_focus : gm.selected, e.delta);
       break;
 
     case InputType::EncoderClick:
       if (cmdMode()) { nextFocus(); touchMode(); }
-      else commanderSelectNext(game);
+      else commanderSelectNext(gm);
       break;
 
     case InputType::EncoderLongPress:
       if (cmdMode()) exitCmdMode();
-      else enterCmdMode(game.selected);
+      else if (!standard()) enterCmdMode(gm.selected);  // Standard has no commander damage
       break;
 
     case InputType::TouchDown: {
-      s_press = commanderHitTest(game.players, e.x, e.y, game.layout);
+      s_press = commanderHitTest(gm.players, e.x, e.y, gm.layout);
       s_pressPartner = false;
       const Zone z = s_press.zone;
       const uint8_t p = s_press.index;
@@ -630,10 +639,10 @@ void handleInput(const InputEvent& e) {
         seatToLocal(st, e.x, e.y, lx, ly);
         const Rect& b = g.partner;
         s_pressPartner = lx >= b.x - 4 && lx < b.x + b.w + 4 && ly >= b.y - 4 && ly < b.y + b.h + 4;
-        if (!s_pressPartner && commanderHasPartner(game, p)) s_partnerSel[p] = lx < g.numCx ? 0 : 1;
+        if (!s_pressPartner && commanderHasPartner(gm, p)) s_partnerSel[p] = lx < g.numCx ? 0 : 1;
       }
       if (z == Zone::Area || z == Zone::Minus || z == Zone::Plus) {
-        if (!cmdMode()) commanderSelect(game, p);
+        if (!cmdMode()) commanderSelect(gm, p);
         else { if (p != (uint8_t)s_victim) s_focus = p; touchMode(); }
       }
       if (z == Zone::Minus) adjustCard(p, -1);
@@ -648,7 +657,7 @@ void handleInput(const InputEvent& e) {
 
     case InputType::TouchSwipe: {  // only swipes that start on a card's number/label area
       s_pressPartner = false;
-      if (s_press.zone != Zone::Area) break;
+      if (standard() || s_press.zone != Zone::Area) break;  // Standard has no commander damage
       const uint8_t p = s_press.index;
       if (!isSidewaysSwipe(table().seats[p], e.delta)) break;  // sideways for that player only
       if (!cmdMode()) enterCmdMode(p);
@@ -669,7 +678,8 @@ void handleInput(const InputEvent& e) {
           s_dice.open();
         }
         else if (cmdMode()) exitCmdMode();         // centre ✕ closes damage mode
-        else goToScreen(SCREEN_COMMANDER_SETUP);   // centre ≡ opens the Commander menu
+        else goToScreen(standard() ? SCREEN_STANDARD_SETUP   // centre ≡ opens the game's menu
+                                   : SCREEN_COMMANDER_SETUP);
       }
       break;
     }

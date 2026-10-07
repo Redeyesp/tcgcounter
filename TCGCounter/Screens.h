@@ -27,6 +27,8 @@ extern const ScreenModule HomeScreen;       // ScreenHome.cpp
 extern const ScreenModule CommanderScreen;  // ScreenCommander.cpp
 extern const ScreenModule CommanderSetupScreen;  // ScreenCommanderSetup.cpp (players / new game)
 void commanderRequestHighRoll();  // ScreenCommander.cpp: start a high roll when the table opens next
+extern const ScreenModule StandardSetupScreen;   // ScreenStandardSetup.cpp (MTG 1v1: continue / high roll / new game)
+                                                 // (the Standard table is CommanderScreen)
 extern const ScreenModule RiftboundScreen;  // ScreenScore.cpp (2 or 4 players / 2v2, to 8 or 11)
 extern const ScreenModule LorcanaScreen;    // ScreenScore.cpp (2 or 4 players, 20 or 25 lore)
 extern const ScreenModule RiftboundSetupScreen;  // ScreenScoreSetup.cpp (continue / format / new game)
@@ -36,5 +38,5 @@ extern const ScreenModule DiceScreen;       // ScreenDice.cpp (Home -> DICE)
 extern const ScreenModule PokemonScreen;       // ScreenPokemon.cpp (device standing)
 extern const ScreenModule PokemonSetupScreen;  // ScreenPokemonSetup.cpp (continue / coin / new game)
 void pokemonRequestCoinFlip();  // ScreenPokemon.cpp: flip a coin when the table opens next
-extern const ScreenModule DigimonScreen;       // ScreenDigimon.cpp (memory gauge, device standing)
-extern const ScreenModule DigimonSetupScreen;  // ScreenDigimonSetup.cpp (continue / new game / lock value)
+extern const ScreenModule DigimonScreen;       // ScreenDigimon.cpp (memory gauge laid out like the board)
+extern const ScreenModule DigimonSetupScreen;  // ScreenDigimonSetup.cpp (continue / new game)

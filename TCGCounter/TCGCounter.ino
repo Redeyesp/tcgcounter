@@ -3,7 +3,7 @@
  *  Target: ESP32-2432S028R "Cheap Yellow Display" + external EC11 encoder
  *
  *  Commander (2-6 players, table layouts, commander damage with partners),
- *  Riftbound (1v1 / 4 players to 8, 2v2 to 11, +1 plus life) and Lorcana
+ *  Standard (Magic 1v1, 20 life), Riftbound (1v1 / 4 players to 8, 2v2 to 11, +1 plus life) and Lorcana
  *  (2 or 4 players, 20 or 25 lore) counters, Pokemon (portrait: Active
  *  damage, PSN / BRN, KO, bench of 5 with swap, coin flip), Digimon (memory
  *  gauge laid out like the board, turn, PASS), a High Roll (D20) in every

@@ -33,6 +33,15 @@ void commanderNewGame(CommanderGame& g, uint8_t players, uint8_t layout) {
   g.selected = 0;
 }
 
+void standardNewGame(CommanderGame& g) {
+  commanderNewGame(g, 2, 0);
+  for (int16_t& l : g.life) l = STANDARD_START_LIFE;
+}
+
+bool standardIsFresh(const CommanderGame& g) {
+  return g.life[0] == STANDARD_START_LIFE && g.life[1] == STANDARD_START_LIFE;
+}
+
 bool commanderSetLayout(CommanderGame& g, uint8_t layout) {
   if (layout >= commanderLayoutCount(g.players) || layout == g.layout) return false;
   g.layout = layout;
@@ -305,6 +314,7 @@ static void digimonSanitize(DigimonGame& g) {
 void appStateSetDefaults(AppState& s) {
   s.screen = SCREEN_HOME;
   commanderNewGame(s.commander);
+  standardNewGame(s.standard);
   scoreNewGame(s.riftbound, 2, RIFTBOUND_TARGET);
   scoreNewGame(s.lorcana, 2, LORCANA_TARGET);
   pokemonNewGame(s.pokemon);
@@ -332,6 +342,14 @@ void appStateSanitize(AppState& s) {
       if (pd) c.partners = (uint8_t)(c.partners | (1u << j));  // damage from a partner: it exists
     }
   }
+  // Standard: always the 2-player table, life only
+  CommanderGame& st = s.standard;
+  const int16_t life0 = clampLife(st.life[0]), life1 = clampLife(st.life[1]);
+  const uint8_t sel = st.selected < 2 ? st.selected : 0;
+  standardNewGame(st);
+  st.life[0] = life0;
+  st.life[1] = life1;
+  st.selected = sel;
 }
 
 bool operator==(const CommanderGame& a, const CommanderGame& b) {
@@ -372,6 +390,7 @@ bool operator==(const DigimonGame& a, const DigimonGame& b) {
 }
 
 bool operator==(const AppState& a, const AppState& b) {
-  return a.screen == b.screen && a.commander == b.commander && a.riftbound == b.riftbound &&
-         a.lorcana == b.lorcana && a.pokemon == b.pokemon && a.digimon == b.digimon;
+  return a.screen == b.screen && a.commander == b.commander && a.standard == b.standard &&
+         a.riftbound == b.riftbound && a.lorcana == b.lorcana && a.pokemon == b.pokemon &&
+         a.digimon == b.digimon;
 }

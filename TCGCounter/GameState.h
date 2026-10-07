@@ -23,6 +23,8 @@ enum Screen : uint8_t {
   SCREEN_POKEMON_SETUP   = 9,  // Pokemon menu: continue / coin flip / new game (v0.11+)
   SCREEN_DIGIMON         = 10, // Digimon memory gauge, laid out like the gauge board (v0.12+)
   SCREEN_DIGIMON_SETUP   = 11, // Digimon menu: continue / new game (who goes first) (v0.12+)
+  SCREEN_STANDARD        = 12, // MTG Standard 1v1 at 20 life (the Commander table, 2 cards) (v0.14+)
+  SCREEN_STANDARD_SETUP  = 13, // Standard menu: continue / high roll / new game (v0.14+)
   SCREEN_COUNT
 };
 
@@ -62,6 +64,10 @@ struct CommanderGame {
 };
 
 enum class OutReason : uint8_t { None, Life, CommanderDamage };
+
+// ---- MTG Standard: 1v1, 20 life. Kept in a CommanderGame (always 2 players,
+// no commander damage, no partners) so the Commander table can show it.
+constexpr int16_t STANDARD_START_LIFE = 20;
 
 // ---- Score race (Riftbound, Lorcana): first to the target wins.
 // 2 or 4 cards on the table; in Riftbound 2v2 the two cards are the teams.
@@ -122,6 +128,7 @@ struct DigimonGame {
 struct AppState {
   Screen        screen;
   CommanderGame commander;
+  CommanderGame standard;  // MTG Standard 1v1 (2 players, 20 life)
   ScoreGame     riftbound;
   ScoreGame     lorcana;
   PokemonGame   pokemon;
@@ -183,6 +190,10 @@ OutReason commanderOutReason(const CommanderGame& g, uint8_t player, uint8_t* so
 inline bool commanderIsOut(const CommanderGame& g, uint8_t player) {
   return commanderOutReason(g, player) != OutReason::None;
 }
+
+// ---- Standard rules (the life changes are the Commander ones) ----
+void standardNewGame(CommanderGame& g);         // both players at 20, P1 selected
+bool standardIsFresh(const CommanderGame& g);   // both still at 20: a new game loses nothing
 
 // ---- Score race rules (Riftbound, Lorcana) ----
 // New game: `players` cards (2 or 4; anything else -> 2), first to `target`

@@ -2,11 +2,13 @@
 
 Target: **ESP32-2432S028R "Cheap Yellow Display" (CYD)** + external **EC11 rotary encoder** with push switch.
 
-A tabletop counter with five games on the home menu:
+A tabletop counter with six games on the home menu (buttons in two columns):
 
 * **COMMANDER** — 2 to 6 players, every card facing its player, with a choice of table
   layouts for 3, 5 and 6 players; Lotus-style commander damage with **Partner** support
   (two commanders counted apart), *YOU ARE OUT*;
+* **STANDARD** — Magic 1v1 at **20** life: the 2-player Commander table without commander
+  damage, with High Roll and dice;
 * **RIFTBOUND** — 1v1 or 4 players free-for-all, first to **8** points, or **2v2** teams to
   **11**; every card has a **+1** "plus life" button (one extra point each);
 * **LORCANA** — 2 or 4 players, first to **20** or **25** lore;
@@ -29,10 +31,9 @@ the screens are rendered off-screen from the real drawing code to check the layo
 the USB-C (ST7789) board.
 
 ![UI preview](docs/ui_preview.png)
-*Rendered from the actual screen code at 2× scale. Digimon, laid out like the memory gauge
-board (the device lies between the players; the bottom player's numbers face them, the top
-player's are upside down here because they face the other way). Left: the bottom player's
-turn with 7 memory. Middle: the top player's turn with 4. Right: the Digimon menu.*
+*Rendered from the actual screen code at 2× scale. Left: the home menu, one button per game
+in two columns. Middle: Standard (Magic 1v1, 20 life), player 1 at 13 and player 2 at 7 — player 1's card
+faces the far side of the table. Right: the Standard menu.*
 
 ---
 
@@ -64,15 +65,17 @@ Using it:
 
 | Where | Touch | Encoder |
 |---|---|---|
-| Home | Tap an entry to open it (**COMMANDER**, **RIFTBOUND**, **LORCANA**, **DICE**) | Turn = move yellow focus · Press = open |
+| Home | Tap a button to open it (**COMMANDER**, **STANDARD**, **RIFTBOUND**, **LORCANA**, **POKEMON**, **DIGIMON**, **DICE**) | Turn = move yellow focus (left to right, then down) · Press = open |
 | Commander menu | **CONTINUE** = back to the running game · **TABLE** = another layout for the running game (nothing is reset) · **HIGH ROLL** = back to the table and roll for who goes first · **2 3 4 5 6** = new game with that many players (3, 5 and 6 first show the table picker; asks before wiping a game) · **< HOME** = home menu | Turn = move yellow focus · Press = choose · Long-press in the picker = back |
 | Commander | Tap a card = select player · Tap/hold **−**/**+** = life (hold repeats) · **Swipe sideways on a card's number** = commander damage mode for that player · Tap centre **≡** = Commander menu · Tap **🎲** = Dice page | Turn = selected player's life ±1 per click · Press = next player (P1→P2→…→P1) · **Long-press** = commander damage mode for the selected player |
 | Commander damage mode | −/+ on an **opponent's** card = damage that opponent dealt to the victim · −/+ on the victim's card = life · small **+** on an opponent's card = that player has a **Partner** (then tap the left / right number to pick which commander −/+ count for; **×** takes the partner away while it has dealt no damage) · Tap centre **✕**, or swipe the victim's card again = close · Swipe another card = switch player | Turn = damage from the focused opponent (commander) · Press = next opponent, or its partner · Long-press = close |
+| Standard menu | **CONTINUE** · **HIGH ROLL** · **1v1 20 LIFE** = new game (asks first) · **< HOME** | Turn = move yellow focus · Press = choose |
+| Standard | Like the 2-player Commander table, without commander damage: tap a card = select · tap/hold **−**/**+** = life · centre **≡** = Standard menu · **🎲** = Dice page | Turn = selected player's life · Press = other player |
 | Dice page | Tap a die (**D4 D6 D8 D12 D20**) = roll it · **BACK** = back to the game · In the popup: **REROLL** · **BACK** = back to the game · tap outside the popup = pick another die. From Home → DICE: the popup's **BACK** = pick another die, **HOME** (top left) = home menu | Turn = move yellow focus · Press = choose · Long-press = back one step |
 | High roll result | Tap anywhere = back to the game (that tap changes nothing) · **≡ → HIGH ROLL** = roll again | Any turn or press = back to the game |
 | Riftbound / Lorcana menu | **CONTINUE** = back to the running game · **HIGH ROLL** · new game: Riftbound **1v1** / **4P** / **2v2**, Lorcana **2P** / **4P** to **20** / **25** (asks first) · **< HOME** | Turn = move yellow focus · Press = choose |
 | Riftbound / Lorcana | Tap/hold **−**/**+** = score (hold repeats) · Tap a card = select · **+1** (Riftbound) = plus life on / off · Round **≡** = the game's menu · **🎲** = Dice page · **↻** = Restart (asks first) | Turn = selected player's score · Press = next player · Long-press = Restart (asks first) |
-| Digimon | Tap a circle on the gauge = put the counter there (**0** in the middle = memory 0; 1+ on the waiting player's side passes the turn) · **PASS** (whose turn it is) = opponent gets 3 · either round **≡** = Digimon menu | Turn = memory ±1 for the player whose turn it is (counter-clockwise = spend) · Long-press = PASS |
+| Digimon | Tap a circle on the gauge = put the counter there (**0** in the middle = memory 0; 1+ on the waiting player's side passes the turn) · **PASS** (whose turn it is) = opponent gets 3 · either round **≡** = Digimon menu | Turn = counter one circle per click, always the same way: clockwise toward the top player, counter-clockwise toward the bottom player · Long-press = PASS |
 | Digimon menu | **CONTINUE** · new game: **BOTTOM** / **TOP** goes first (asks first) · **< HOME** | Turn = move yellow focus · Press = choose |
 | Pokémon (device standing) | Tap/hold **−**/**+** = damage ±10 on what is open (hold repeats) · **PSN** / **BRN** = poisoned / burned on/off · **KO** = back to 0 · tap a bench slot **1–5** = open it (−/+, KO, **⇅ SWAP**, **<** back) · round **coin** = coin flip on both halves · **≡** = Pokémon menu (CONTINUE / COIN FLIP / NEW GAME / HOME) | Turn = ±10 on what the selected player has open · Press = other player · Long-press = back to the Active · Coin page: press = flip again, long-press = back |
 
@@ -147,6 +150,13 @@ red and shows *YOU ARE OUT*. − / + still work, so a mis-tap can be undone and 
 "revives" as soon as the numbers are legal again. (Rules live in `GameState.h`: `OUT_AT_LIFE`,
 `CMD_DAMAGE_LETHAL`, `CMD_DAMAGE_AFFECTS_LIFE`.)
 
+**Standard (Magic 1v1).** Home → **STANDARD** opens its menu: **CONTINUE**, **HIGH ROLL**
+(back to the table, rolling for who goes first), **1v1 · 20 LIFE** for a new game (asks first
+unless both players are still at 20) and **< HOME**. The table is the 2-player Commander
+table — two cards facing each other, −/+ with hold-repeat, *YOU ARE OUT* at 0 — with its own
+game (Commander's is kept), no commander damage (swiping and the encoder long-press do
+nothing), the round **≡** for the Standard menu and **🎲** for the Dice page.
+
 **Riftbound and Lorcana.** Home → **RIFTBOUND** / **LORCANA** opens the game's menu (like
 the Commander one): **CONTINUE** the running game, **HIGH ROLL**, or a new game in another
 format — Riftbound **1v1** (to 8), **4P** (4 players free-for-all, to 8) or **2v2** (two
@@ -201,7 +211,10 @@ has passed on that side are tinted. Each player also has **MEMORY n** as they se
 a **PASS** button, or **WAITING**. Tap a circle to move the counter there. When it lands on
 **1 or more on the waiting player's side**, the turn passes to them (the official rule).
 **PASS** gives the opponent 3 memory and the turn. The two round **≡** buttons (one in each
-player's free corner) open the menu.
+player's free corner) open the menu. The encoder moves the counter one circle per click and
+always the same way, whoever's turn it is: **clockwise toward the top player**,
+counter-clockwise toward the bottom player (along the middle row: clockwise = to the right as
+the bottom player sees it).
 
 **High Roll (who goes first).** Open the game's **≡** menu and choose **HIGH ROLL** (top right
 of the game's menu). Every player's card turns into a
@@ -302,10 +315,12 @@ tcgcounter/
     │
     ├── App.h/.cpp            screen state machine: routes events, triggers rendering
     ├── Screens.h             ScreenModule interface (onEnter / handleInput / render)
-    ├── ScreenHome.cpp        main menu
+    ├── ScreenHome.cpp        main menu: one button per game, two columns
     ├── ScreenCommanderSetup.cpp  Commander menu: continue / players 2-6 / new game (+ confirm)
     ├── CommanderLayout.h/.cpp    table layouts for 2-6 players, card geometry, touch mapping
-    ├── ScreenCommander.cpp   life counter + commander damage, draws the layout's cards
+    ├── ScreenCommander.cpp   life counter + commander damage, draws the layout's cards;
+    │                         also the Standard table (2 cards, 20 life, no commander damage)
+    ├── ScreenStandardSetup.cpp  Standard menu: continue / high roll / new game (+ confirm)
     ├── ScreenScoreSetup.cpp  Riftbound / Lorcana menu: continue / format / new game (+ confirm)
     ├── ScoreLayout.h/.cpp    Riftbound / Lorcana tables (2 or 4 cards), card geometry, touch mapping
     ├── ScreenScore.cpp       Riftbound + Lorcana: score race with +1 plus life and Restart
@@ -366,6 +381,7 @@ Key design rules:
 | `tcg` | `cd` | commander damage, 6×6 bytes `[victim][source]` (v0.2–v0.3 saved 4×4: converted on load, the game is kept; missing in v0.1 saves → all 0) |
 | `tcg` | `cd2`, `pt` | Partner: the partners' commander damage (6×6 bytes) and which players have one (bit mask) (v0.10+; missing → none) |
 | `tcg` | `pk` | Pokémon, 27 bytes (v0.11+): per player the Active's damage, PSN/BRN bits and bench 1–5 damage, then the selected player (missing → a fresh game) |
+| `tcg` | `st` | Standard, 5 bytes (v0.14+): life P1, life P2 (int16, little endian), selected player (missing → both at 20) |
 | `tcg` | `dg` | Digimon, 2 bytes (v0.13+): memory (−10..10, > 0 = the bottom player's side), whose turn (missing → memory 0; a 4-byte v0.12 save keeps memory and turn, its memory lock is dropped) |
 | `tcgtouch` | `cal`, `calv` | touch calibration (separate, so a future game reset can't erase it) |
 
@@ -573,7 +589,7 @@ Restart, High Roll and Dice for free. For anything different:
 | 1 | `GameState.h` | Add the new state as a member of `AppState`, update `operator==`, `appStateSetDefaults()` and `appStateSanitize()` in `GameState.cpp`. Rules go in `GameState.cpp` or a new file — no drawing there. |
 | 2 | `ScreenXxx.cpp` (new) | Implement `onEnter`, `handleInput`, `render` (and `tick` for timers) and define `const ScreenModule XxxScreen = {...};`. `ScreenScore.cpp` is the simplest template: diff-based rendering, cards via `TableDraw`, `ConfirmDialog` for resets, `DiceOverlay` for dice, `HighRoll` for who goes first. |
 | 3 | `GameState.h`, `Screens.h`, `App.cpp` | Add a `Screen` value **at the end** of the enum (values are stored in flash — never renumber), declare the module and return it in `moduleFor()`. |
-| 4 | `ScreenHome.cpp` | Add the menu entry (the six entries fill the 240 px screen — a seventh needs `ITEM_H` / `ITEM_PITCH` re-spaced). |
+| 4 | `ScreenHome.cpp` | Add a button (name, short line under it, stripe colour). The buttons fill two columns; seven fit with DICE across the bottom — more need `ROW_H` / `ROW_PITCH` re-spaced. |
 | 5 | `AppStorage.cpp` | Add NVS keys for the new state in `loadState()` and `writeState()`. |
 
 More Commander counters (poison, energy, tax) belong in `CommanderGame` in `GameState.h` and,

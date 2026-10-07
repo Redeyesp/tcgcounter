@@ -1,8 +1,17 @@
 /* ============================================================================
- *  ScreenHome — main menu: COMMANDER / RIFTBOUND / LORCANA / POKEMON / DIGIMON / DICE.
+ *  ScreenHome — main menu: one button per game, two columns.
  *
- *  Touch:   tap an entry to open it.
- *  Encoder: turn moves the yellow focus frame, press opens the focused entry.
+ *  ┌──────────────────────────────────────────┐
+ *  │ TCG COUNTER                      v0.14.0 │
+ *  │ [ COMMANDER        ] [ STANDARD         ] │  each button: the game, and
+ *  │ [ RIFTBOUND        ] [ LORCANA          ] │  a short line under it
+ *  │ [ POKEMON          ] [ DIGIMON          ] │
+ *  │ [                 DICE                  ] │
+ *  └──────────────────────────────────────────┘
+ *
+ *  Touch:   tap a button to open it.
+ *  Encoder: turn moves the yellow focus frame (left to right, then down),
+ *           press opens the focused button.
  * ==========================================================================*/
 #include "Screens.h"
 #include "App.h"
@@ -15,25 +24,33 @@ namespace {
 
 struct MenuItem {
   const char* label;
-  Screen target;
-  bool available;  // false = drawn dimmed (for a mode that is not ready yet)
+  const char* hint;    // short line under the name
+  Screen      target;
+  uint16_t    color;   // the stripe on the button's left edge
 };
 
-// To add a new mode, add a Screen value, a ScreenModule and an entry here
-// (then re-space ITEM_Y / ITEM_H so the list still fits 240 px).
+// To add a new mode, add a Screen value, a ScreenModule and an entry here.
+// The buttons fill two columns; an odd one out at the end spans both.
 const MenuItem ITEMS[] = {
-  {"COMMANDER", SCREEN_COMMANDER_SETUP, true},  // menu first: players / continue / new game
-  {"RIFTBOUND", SCREEN_RIFTBOUND_SETUP, true},  // menu first: 1v1 / 4 players / 2v2
-  {"LORCANA",   SCREEN_LORCANA_SETUP,   true},  // menu first: 2 or 4 players, 20 or 25 lore
-  {"POKEMON",   SCREEN_POKEMON_SETUP,   true},  // menu first (device standing)
-  {"DIGIMON",   SCREEN_DIGIMON_SETUP,   true},  // menu first (device standing)
-  {"DICE",      SCREEN_DICE,            true},  // D4..D20 on their own
+  {"COMMANDER", "2-6 players",          SCREEN_COMMANDER_SETUP, theme::PLAYER[3]},
+  {"STANDARD",  "1v1, 20 life",         SCREEN_STANDARD_SETUP,  theme::PLAYER[4]},
+  {"RIFTBOUND", "to 8, 2v2 to 11",      SCREEN_RIFTBOUND_SETUP, theme::PLAYER[2]},
+  {"LORCANA",   "20 or 25 lore",        SCREEN_LORCANA_SETUP,   theme::PLAYER[1]},
+  {"POKEMON",   "damage, bench",        SCREEN_POKEMON_SETUP,   theme::PLAYER[5]},
+  {"DIGIMON",   "memory gauge",         SCREEN_DIGIMON_SETUP,   theme::PLAYER[0]},
+  {"DICE",      "D4 D6 D8 D12 D20",     SCREEN_DICE,            theme::TEXT_DIM},
 };
 constexpr int8_t ITEM_COUNT = sizeof(ITEMS) / sizeof(ITEMS[0]);
 
-constexpr int ITEM_X = 16, ITEM_W = 288, ITEM_H = 30, ITEM_Y0 = 36, ITEM_PITCH = 34;  // 6 entries
+constexpr int GRID_X = 10, GRID_W = 300, GRID_Y0 = 36, COL_GAP = 8, ROW_H = 44, ROW_PITCH = 50;
+constexpr int COL_W = (GRID_W - COL_GAP) / 2;
 
-Rect itemRect(int8_t i) { return Rect{ITEM_X, (int16_t)(ITEM_Y0 + i * ITEM_PITCH), ITEM_W, ITEM_H}; }
+Rect itemRect(int8_t i) {
+  const int row = i / 2, col = i % 2;
+  const bool alone = (ITEM_COUNT % 2 == 1) && i == ITEM_COUNT - 1;  // last odd one: full width
+  return Rect{(int16_t)(GRID_X + (alone ? 0 : col * (COL_W + COL_GAP))), (int16_t)(GRID_Y0 + row * ROW_PITCH),
+              (int16_t)(alone ? GRID_W : COL_W), ROW_H};
+}
 
 int8_t hitTest(int x, int y) {
   for (int8_t i = 0; i < ITEM_COUNT; ++i)
@@ -54,14 +71,20 @@ void drawItem(int8_t i) {
   const uint16_t fill = pressed ? theme::BUTTON_DOWN : theme::BUTTON;
 
   g.fillRect(r.x, r.y, r.w, r.h, theme::BG);
-  g.fillRoundRect(r.x, r.y, r.w, r.h, 12, fill);
-  if (i == s_focus) uiRoundFrame(g, r.x, r.y, r.w, r.h, 12, 3, theme::ACCENT);
+  g.fillRoundRect(r.x, r.y, r.w, r.h, 10, fill);
+  g.fillRoundRect(r.x + 6, r.y + 8, 5, r.h - 16, 2, it.color);  // the game's stripe
+  if (i == s_focus) uiRoundFrame(g, r.x, r.y, r.w, r.h, 10, 3, theme::ACCENT);
 
-  g.setFont(theme::fontButton());  // six entries: the 12 pt font keeps them airy
-  g.setTextDatum(lgfx::textdatum_t::middle_left);
-  g.setTextColor(it.available ? theme::TEXT : theme::TEXT_DIM);
-  g.drawString(it.label, r.x + 18, r.cy() + 1);
-  if (it.available) uiChevron(g, r.x + r.w - 20, r.cy(), 18, 4, true, theme::TEXT_DIM);
+  const bool wide = r.w > COL_W;
+  const int tx = wide ? r.cx() : r.x + 19;
+  const lgfx::textdatum_t top = wide ? lgfx::textdatum_t::middle_center : lgfx::textdatum_t::middle_left;
+  g.setTextDatum(top);
+  g.setFont(theme::fontLabel());
+  g.setTextColor(theme::TEXT);
+  g.drawString(it.label, tx, r.y + 15);
+  g.setFont(theme::fontSmall());
+  g.setTextColor(theme::TEXT_DIM);
+  g.drawString(it.hint, tx, r.y + 31);
 }
 
 void open(int8_t i) {
@@ -104,10 +127,10 @@ void render(bool full) {
     g.setFont(theme::fontButton());
     g.setTextDatum(lgfx::textdatum_t::middle_left);
     g.setTextColor(theme::TEXT_DIM);
-    g.drawString("TCG COUNTER", ITEM_X + 4, 18);
+    g.drawString("TCG COUNTER", GRID_X + 4, 18);
     g.setFont(theme::fontSmall());
     g.setTextDatum(lgfx::textdatum_t::middle_right);
-    g.drawString("v" FW_VERSION, ITEM_X + ITEM_W - 4, 18);
+    g.drawString("v" FW_VERSION, GRID_X + GRID_W - 4, 18);
     for (int8_t i = 0; i < ITEM_COUNT; ++i) drawItem(i);
     g.endWrite();
     s_drawnFocus = s_focus;

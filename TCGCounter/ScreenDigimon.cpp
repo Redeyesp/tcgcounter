@@ -20,8 +20,9 @@
  *           waiting player's side, the turn passes to them.
  *           PASS (only the player whose turn it is) = opponent gets 3 memory
  *           and the turn.  ≡ (either one) = Digimon menu.
- *  Encoder: turn = memory of the player whose turn it is, +-1 per click
- *           (counter-clockwise = spend) · long-press = PASS
+ *  Encoder: turn = move the counter one circle per click, always the same
+ *           way whoever's turn it is: clockwise toward the top player,
+ *           counter-clockwise toward the bottom player · long-press = PASS
  * ==========================================================================*/
 #include <Arduino.h>
 #include "Screens.h"
@@ -233,7 +234,7 @@ void onEnter() { s_press = NO_TOUCH; }
 void handleInput(const InputEvent& e) {
   DigimonGame& g = game();
   switch (e.type) {
-    case InputType::EncoderTurn:      digimonAdjust(g, g.turn, e.delta); break;
+    case InputType::EncoderTurn:      digimonAdjust(g, 1, e.delta); break;  // + = toward the top player
     case InputType::EncoderLongPress: digimonPass(g); break;
     case InputType::TouchDown:        s_press = hitTest(e.x, e.y); break;
     case InputType::TouchUp: {

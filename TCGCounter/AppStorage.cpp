@@ -24,6 +24,8 @@
  *                        dg   (2 bytes) Digimon (v0.13+): memory (i8, > 0 = player 1's
  *                             side), whose turn. v0.12 saved 4 bytes (+ memory lock):
  *                             the first two are read
+ *                        st   (5 bytes) Standard (v0.14+): life P1, life P2 (i16, little
+ *                             endian), selected player. Missing -> both at 20
  *                        rb   Riftbound, lc Lorcana:
  *                             12 bytes from v0.9: players, teams, target,
  *                               score P1..P4, plus life P1..P4, selected
@@ -116,6 +118,23 @@ static void saveDigimon(Preferences& p, const DigimonGame& g) {
   p.putBytes("dg", b, sizeof(b));
 }
 
+// Standard (a 2-player CommanderGame) <-> 5-byte blob {life P1, life P2, selected}
+static const size_t ST_BLOB = 5;
+static void loadStandard(Preferences& p, CommanderGame& g) {
+  if (!p.isKey("st") || p.getBytesLength("st") != ST_BLOB) return;  // keep defaults
+  uint8_t b[ST_BLOB];
+  p.getBytes("st", b, sizeof(b));
+  g.life[0] = (int16_t)(b[0] | (b[1] << 8));
+  g.life[1] = (int16_t)(b[2] | (b[3] << 8));
+  g.selected = b[4];
+}
+static void saveStandard(Preferences& p, const CommanderGame& g) {
+  const uint8_t b[ST_BLOB] = {(uint8_t)(g.life[0] & 0xFF), (uint8_t)((uint16_t)g.life[0] >> 8),
+                              (uint8_t)(g.life[1] & 0xFF), (uint8_t)((uint16_t)g.life[1] >> 8),
+                              g.selected};
+  p.putBytes("st", b, sizeof(b));
+}
+
 static void saveScore(Preferences& p, const char* key, const ScoreGame& g) {
   uint8_t b[SCORE_BLOB];
   b[0] = g.players;
@@ -162,6 +181,7 @@ void loadState() {
       loadScore(p, "lc", g_state.lorcana);
       loadPokemon(p, g_state.pokemon);
       loadDigimon(p, g_state.digimon);
+      loadStandard(p, g_state.standard);
       restored = true;
     }
     p.end();
@@ -236,6 +256,7 @@ static void writeState(const AppState& s) {
   if (all || s.lorcana != s_saved.lorcana)     { saveScore(p, "lc", s.lorcana);   ++writes; }
   if (all || s.pokemon != s_saved.pokemon)     { savePokemon(p, s.pokemon);       ++writes; }
   if (all || s.digimon != s_saved.digimon)     { saveDigimon(p, s.digimon);       ++writes; }
+  if (all || s.standard != s_saved.standard)   { saveStandard(p, s.standard);     ++writes; }
   p.end();
 
   s_saved = s;
