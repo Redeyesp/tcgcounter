@@ -258,12 +258,72 @@ static void pokemonSanitize(PokemonGame& g) {
   if (g.selected > 1) g.selected = 0;
 }
 
+// ---- Digimon
+static int8_t clampMemory(int v) {
+  if (v < -DIGIMON_MEMORY_MAX) return -DIGIMON_MEMORY_MAX;
+  if (v > DIGIMON_MEMORY_MAX) return DIGIMON_MEMORY_MAX;
+  return (int8_t)v;
+}
+
+void digimonNewGame(DigimonGame& g, uint8_t first) {
+  g.memory = 0;
+  g.turn = first ? 1 : 0;
+}
+
+bool digimonIsFresh(const DigimonGame& g) { return g.memory == 0; }
+
+bool digimonSetMemory(DigimonGame& g, uint8_t p, int value) {
+  if (p > 1) return false;
+  const DigimonGame before = g;
+  int8_t m = clampMemory(value);
+  if (p == 1) m = (int8_t)-m;  // to player 1's point of view
+  // whose side is it on now: the waiting player's -> their turn
+  const int8_t waiting = (int8_t)(1 - g.turn);
+  const int8_t forWaiting = waiting == 0 ? m : (int8_t)-m;
+  if (forWaiting >= 1) {
+    g.turn = (uint8_t)waiting;
+    if (g.lock) m = waiting == 0 ? (int8_t)g.lockAt : (int8_t)-g.lockAt;
+  }
+  g.memory = m;
+  return g != before;
+}
+
+bool digimonAdjust(DigimonGame& g, uint8_t p, int delta) {
+  if (p > 1 || delta == 0) return false;
+  return digimonSetMemory(g, p, digimonMemoryOf(g, p) + delta);
+}
+
+void digimonPass(DigimonGame& g) {
+  const uint8_t next = (uint8_t)(1 - g.turn);
+  const int8_t m = (int8_t)(g.lock ? g.lockAt : DIGIMON_PASS_MEMORY);
+  g.memory = next == 0 ? m : (int8_t)-m;
+  g.turn = next;
+}
+
+void digimonSetLock(DigimonGame& g, bool on) { g.lock = on; }
+
+void digimonSetLockAt(DigimonGame& g, int value) {
+  if (value < 1) value = 1;
+  if (value > DIGIMON_MEMORY_MAX) value = DIGIMON_MEMORY_MAX;
+  g.lockAt = (uint8_t)value;
+}
+
+static void digimonSanitize(DigimonGame& g) {
+  g.memory = clampMemory(g.memory);
+  if (g.turn > 1) g.turn = 0;
+  g.lock = g.lock ? true : false;
+  if (g.lockAt < 1 || g.lockAt > DIGIMON_MEMORY_MAX) g.lockAt = DIGIMON_DEFAULT_LOCK;
+}
+
 void appStateSetDefaults(AppState& s) {
   s.screen = SCREEN_HOME;
   commanderNewGame(s.commander);
   scoreNewGame(s.riftbound, 2, RIFTBOUND_TARGET);
   scoreNewGame(s.lorcana, 2, LORCANA_TARGET);
   pokemonNewGame(s.pokemon);
+  s.digimon.lock = false;
+  s.digimon.lockAt = DIGIMON_DEFAULT_LOCK;
+  digimonNewGame(s.digimon, 0);
 }
 
 void appStateSanitize(AppState& s) {
@@ -271,6 +331,7 @@ void appStateSanitize(AppState& s) {
   scoreSanitize(s.riftbound, RIFTBOUND_TARGET);
   scoreSanitize(s.lorcana, LORCANA_TARGET);
   pokemonSanitize(s.pokemon);
+  digimonSanitize(s.digimon);
   CommanderGame& c = s.commander;
   c.players = clampPlayers(c.players);
   c.layout = clampLayout(c.players, c.layout);
@@ -321,7 +382,11 @@ bool operator==(const PokemonGame& a, const PokemonGame& b) {
   return true;
 }
 
+bool operator==(const DigimonGame& a, const DigimonGame& b) {
+  return a.memory == b.memory && a.turn == b.turn && a.lock == b.lock && a.lockAt == b.lockAt;
+}
+
 bool operator==(const AppState& a, const AppState& b) {
-  return a.screen == b.screen && a.commander == b.commander &&
-         a.riftbound == b.riftbound && a.lorcana == b.lorcana && a.pokemon == b.pokemon;
+  return a.screen == b.screen && a.commander == b.commander && a.riftbound == b.riftbound &&
+         a.lorcana == b.lorcana && a.pokemon == b.pokemon && a.digimon == b.digimon;
 }

@@ -17,8 +17,11 @@ using CardPainter = void (*)(lgfx::LovyanGFX& c, int ox, int oy, const void* ctx
 // cards; bigger cards are drawn in bands.
 void drawSeatCard(const Seat& seat, CardPainter paint, const void* ctx);
 
-// MenuUpright: the ≡ bars for a screen read standing up (portrait, Pokemon).
-enum class HubIcon : uint8_t { Menu, Close, Home, Restart, HighRoll, Dice, MenuUpright, Coin };
+// MenuUpright: the ≡ bars for a screen read standing up (portrait: Pokemon,
+// Digimon). LockUpright / ZeroUpright: Digimon's memory lock and memory 0.
+enum class HubIcon : uint8_t {
+  Menu, Close, Home, Restart, HighRoll, Dice, MenuUpright, Coin, LockUpright, ZeroUpright
+};
 
 // Round button between the cards, with a dark moat around it
 // (HUB_R / HUB_MOAT / HUB_HIT_R in CommanderLayout.h).

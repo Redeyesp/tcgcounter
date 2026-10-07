@@ -21,6 +21,8 @@
  *                        pk   (27 bytes) Pokemon (v0.11+): for P1 then P2: Active damage
  *                             (i16, little endian), status bits, bench 1..5 damage (i16 each);
  *                             then the selected player. Missing -> a fresh game
+ *                        dg   (4 bytes) Digimon (v0.12+): memory (i8, > 0 = player 1's
+ *                             side), whose turn, memory lock on, lock value
  *                        rb   Riftbound, lc Lorcana:
  *                             12 bytes from v0.9: players, teams, target,
  *                               score P1..P4, plus life P1..P4, selected
@@ -98,6 +100,21 @@ static void savePokemon(Preferences& p, const PokemonGame& g) {
   p.putBytes("pk", b, sizeof(b));
 }
 
+// DigimonGame <-> 4-byte blob
+static void loadDigimon(Preferences& p, DigimonGame& g) {
+  if (!p.isKey("dg") || p.getBytesLength("dg") != 4) return;  // keep defaults
+  uint8_t b[4];
+  p.getBytes("dg", b, sizeof(b));
+  g.memory = (int8_t)b[0];
+  g.turn = b[1];
+  g.lock = b[2] != 0;
+  g.lockAt = b[3];
+}
+static void saveDigimon(Preferences& p, const DigimonGame& g) {
+  const uint8_t b[4] = {(uint8_t)g.memory, g.turn, (uint8_t)(g.lock ? 1 : 0), g.lockAt};
+  p.putBytes("dg", b, sizeof(b));
+}
+
 static void saveScore(Preferences& p, const char* key, const ScoreGame& g) {
   uint8_t b[SCORE_BLOB];
   b[0] = g.players;
@@ -143,6 +160,7 @@ void loadState() {
       loadScore(p, "rb", g_state.riftbound);
       loadScore(p, "lc", g_state.lorcana);
       loadPokemon(p, g_state.pokemon);
+      loadDigimon(p, g_state.digimon);
       restored = true;
     }
     p.end();
@@ -216,6 +234,7 @@ static void writeState(const AppState& s) {
   if (all || s.riftbound != s_saved.riftbound) { saveScore(p, "rb", s.riftbound); ++writes; }
   if (all || s.lorcana != s_saved.lorcana)     { saveScore(p, "lc", s.lorcana);   ++writes; }
   if (all || s.pokemon != s_saved.pokemon)     { savePokemon(p, s.pokemon);       ++writes; }
+  if (all || s.digimon != s_saved.digimon)     { saveDigimon(p, s.digimon);       ++writes; }
   p.end();
 
   s_saved = s;

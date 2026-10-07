@@ -36,3 +36,5 @@ extern const ScreenModule DiceScreen;       // ScreenDice.cpp (Home -> DICE)
 extern const ScreenModule PokemonScreen;       // ScreenPokemon.cpp (device standing)
 extern const ScreenModule PokemonSetupScreen;  // ScreenPokemonSetup.cpp (continue / coin / new game)
 void pokemonRequestCoinFlip();  // ScreenPokemon.cpp: flip a coin when the table opens next
+extern const ScreenModule DigimonScreen;       // ScreenDigimon.cpp (memory gauge, device standing)
+extern const ScreenModule DigimonSetupScreen;  // ScreenDigimonSetup.cpp (continue / new game / lock value)

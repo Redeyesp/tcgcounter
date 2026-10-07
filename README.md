@@ -2,7 +2,7 @@
 
 Target: **ESP32-2432S028R "Cheap Yellow Display" (CYD)** + external **EC11 rotary encoder** with push switch.
 
-A tabletop counter with four games on the home menu:
+A tabletop counter with five games on the home menu:
 
 * **COMMANDER** — 2 to 6 players, every card facing its player, with a choice of table
   layouts for 3, 5 and 6 players; Lotus-style commander damage with **Partner** support
@@ -12,8 +12,10 @@ A tabletop counter with four games on the home menu:
 * **LORCANA** — 2 or 4 players, first to **20** or **25** lore;
 * **POKEMON** — the device stands up, one half per player: the Active Pokémon's damage in
   tens with **PSN** / **BRN** and **KO**, a bench of 5 with **SWAP**, and a coin flip;
+* **DIGIMON** — the device stands up: the shared memory gauge (0 in the middle, each
+  player's 1–10 on their half), whose turn it is, **PASS** and a **memory lock**;
 
-plus **High Roll** in every game's **≡** menu to decide who goes first (Pokémon: coin flip), and a **Dice** page
+plus **High Roll** in every game's **≡** menu to decide who goes first (Pokémon: coin flip; Digimon: pick in NEW GAME), and a **Dice** page
 (D4 / D6 / D8 / D12 / D20) behind the round **🎲** button on the game tables and as **DICE**
 on the home menu, with touch and encoder working at the same time, and every game saved to
 flash so it survives power-off.
@@ -27,8 +29,9 @@ the USB-C (ST7789) board.
 
 ![UI preview](docs/ui_preview.png)
 *Rendered from the actual screen code at 2× scale, shown the way the device stands for
-Pokémon (portrait, player 1 at the top): the table (P1 poisoned, P2 poisoned and burned), bench
-slot 4 opened with SWAP, a coin flip on both halves, the Pokémon menu.*
+Pokémon and Digimon (portrait, player 1 at the top). Left: Pokémon (P1 poisoned, P2 poisoned
+and burned). Then Digimon: player 2's turn with 4 memory and the memory lock on at 3, the
+Digimon menu (lock value), and NEW GAME asking who goes first.*
 
 ---
 
@@ -68,6 +71,7 @@ Using it:
 | High roll result | Tap anywhere = back to the game (that tap changes nothing) · **≡ → HIGH ROLL** = roll again | Any turn or press = back to the game |
 | Riftbound / Lorcana menu | **CONTINUE** = back to the running game · **HIGH ROLL** · new game: Riftbound **1v1** / **4P** / **2v2**, Lorcana **2P** / **4P** to **20** / **25** (asks first) · **< HOME** | Turn = move yellow focus · Press = choose |
 | Riftbound / Lorcana | Tap/hold **−**/**+** = score (hold repeats) · Tap a card = select · **+1** (Riftbound) = plus life on / off · Round **≡** = the game's menu · **🎲** = Dice page · **↻** = Restart (asks first) | Turn = selected player's score · Press = next player · Long-press = Restart (asks first) |
+| Digimon (device standing) | Tap a memory slot **1–10** = put the counter there (on that player's side; 1+ on the waiting player's side passes the turn) · **PASS** (whose turn it is) = opponent gets 3 · round **0** = memory 0 · round **lock** = memory lock on/off (gold = on) · **≡** = Digimon menu (CONTINUE / NEW GAME: who goes first / MEMORY LOCK AT − n + / HOME) | Turn = memory ±1 for the player whose turn it is (counter-clockwise = spend) · Press = memory lock on/off · Long-press = PASS |
 | Pokémon (device standing) | Tap/hold **−**/**+** = damage ±10 on what is open (hold repeats) · **PSN** / **BRN** = poisoned / burned on/off · **KO** = back to 0 · tap a bench slot **1–5** = open it (−/+, KO, **⇅ SWAP**, **<** back) · round **coin** = coin flip on both halves · **≡** = Pokémon menu (CONTINUE / COIN FLIP / NEW GAME / HOME) | Turn = ±10 on what the selected player has open · Press = other player · Long-press = back to the Active · Coin page: press = flip again, long-press = back |
 
 **Players and seating (2–6).** Home → **COMMANDER** opens the Commander menu. **CONTINUE**
@@ -181,6 +185,22 @@ end, as they do when the Active goes to the bench. **KO** puts that Pokémon's d
 player (**FLIP** again, **BACK**); the result comes from the ESP32's random generator.
 Pokémon has no dice button. Prize cards are left to the players.
 
+**Digimon.** Home → **DIGIMON** opens its menu: **CONTINUE**, **NEW GAME** (asks who goes
+first: **TOP PLAYER** / **BOTTOM PLAYER**; memory back to 0), **MEMORY LOCK AT − n +** and
+**HOME**. Stand the device up between the players, like Pokémon. The memory gauge runs
+through the device: **0** is the round button in the middle, and each player's side of the
+gauge, **1–10**, is on their own half (1 nearest the middle, 10 nearest the player). The lit
+slot is the counter; the slots it has passed are tinted. Each half also shows **MEMORY n**
+as that player sees it (negative = the counter is on the opponent's side), and **YOUR
+TURN** with a **PASS** button, or **WAITING**. Tap a slot to move the counter there. When
+it lands on **1 or more on the waiting player's side**, the turn passes to them (the
+official rule) and the halves swap YOUR TURN / WAITING. **PASS** gives the opponent 3
+memory and the turn. **Memory lock** (the round lock button, gold when on): whenever the
+turn changes, the new turn starts with exactly the lock value (default **3**, set in the
+menu) instead of wherever the counter landed — 1, 2, 5 … all become 3; PASS gives the lock
+value too. On your own side the lock changes nothing. Mis-tapped across the middle with the
+lock on? Tap the right slot twice (the first tap passes the turn back at the lock value).
+
 **High Roll (who goes first).** Open the game's **≡** menu and choose **HIGH ROLL** (top right
 of the game's menu). Every player's card turns into a
 D20 whose face changes fast, slows down and lands on a real roll (the ESP32's hardware random
@@ -290,6 +310,8 @@ tcgcounter/
     ├── ScreenDice.cpp        Home -> DICE: the Dice page on its own
     ├── ScreenPokemon.cpp     Pokemon table (portrait): Active, PSN/BRN, KO, bench, swap, coin flip
     ├── ScreenPokemonSetup.cpp  Pokemon menu (portrait): continue / coin flip / new game
+    ├── ScreenDigimon.cpp     Digimon memory gauge (portrait): turn, PASS, memory lock
+    ├── ScreenDigimonSetup.cpp  Digimon menu (portrait): continue / who goes first / lock value
     ├── HighRoll.h/.cpp       high roll logic: D20 per player, tie-breaks (no drawing)
     ├── TableDraw.h/.cpp      cards that face their player (off-screen, rotated), round buttons, dice shapes
     ├── UiConfirm.h/.cpp      full-screen CANCEL / OK question (new game, restart)
@@ -342,6 +364,7 @@ Key design rules:
 | `tcg` | `cd` | commander damage, 6×6 bytes `[victim][source]` (v0.2–v0.3 saved 4×4: converted on load, the game is kept; missing in v0.1 saves → all 0) |
 | `tcg` | `cd2`, `pt` | Partner: the partners' commander damage (6×6 bytes) and which players have one (bit mask) (v0.10+; missing → none) |
 | `tcg` | `pk` | Pokémon, 27 bytes (v0.11+): per player the Active's damage, PSN/BRN bits and bench 1–5 damage, then the selected player (missing → a fresh game) |
+| `tcg` | `dg` | Digimon, 4 bytes (v0.12+): memory (−10..10, > 0 = player 1's side), whose turn, memory lock on, lock value (missing → memory 0, lock off at 3) |
 | `tcgtouch` | `cal`, `calv` | touch calibration (separate, so a future game reset can't erase it) |
 
 ---
@@ -548,7 +571,7 @@ Restart, High Roll and Dice for free. For anything different:
 | 1 | `GameState.h` | Add the new state as a member of `AppState`, update `operator==`, `appStateSetDefaults()` and `appStateSanitize()` in `GameState.cpp`. Rules go in `GameState.cpp` or a new file — no drawing there. |
 | 2 | `ScreenXxx.cpp` (new) | Implement `onEnter`, `handleInput`, `render` (and `tick` for timers) and define `const ScreenModule XxxScreen = {...};`. `ScreenScore.cpp` is the simplest template: diff-based rendering, cards via `TableDraw`, `ConfirmDialog` for resets, `DiceOverlay` for dice, `HighRoll` for who goes first. |
 | 3 | `GameState.h`, `Screens.h`, `App.cpp` | Add a `Screen` value **at the end** of the enum (values are stored in flash — never renumber), declare the module and return it in `moduleFor()`. |
-| 4 | `ScreenHome.cpp` | Add the menu entry (the five entries fill the 240 px screen — a sixth needs `ITEM_H` / `ITEM_PITCH` re-spaced). |
+| 4 | `ScreenHome.cpp` | Add the menu entry (the six entries fill the 240 px screen — a seventh needs `ITEM_H` / `ITEM_PITCH` re-spaced). |
 | 5 | `AppStorage.cpp` | Add NVS keys for the new state in `loadState()` and `writeState()`. |
 
 More Commander counters (poison, energy, tax) belong in `CommanderGame` in `GameState.h` and,

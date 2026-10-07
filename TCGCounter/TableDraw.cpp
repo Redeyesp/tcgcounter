@@ -35,6 +35,22 @@ void menuIconUpright(int cx, int cy, uint16_t color) {
   for (int k = -1; k <= 1; ++k) g.fillRect(cx - 1 + 6 * k, cy - 8, 3, 17, color);
 }
 
+// A padlock for a standing screen: the shackle points to the panel's left
+// edge, which is "up" for someone reading the device standing.
+void lockIconUpright(int cx, int cy, uint16_t color, uint16_t cutout) {
+  auto& g = gfx();
+  g.fillRoundRect(cx - 2, cy - 7, 10, 15, 2, color);       // body
+  g.fillArc(cx - 2, cy, 4, 7, 90, 270, color);             // shackle
+  g.fillRect(cx + 2, cy - 1, 3, 3, cutout);                // keyhole
+}
+
+// A "0" for a standing screen (taller than wide as read standing up).
+void zeroIconUpright(int cx, int cy, uint16_t color, uint16_t cutout) {
+  auto& g = gfx();
+  g.fillEllipse(cx, cy, 9, 7, color);
+  g.fillEllipse(cx, cy, 5, 4, cutout);
+}
+
 // A gold coin with a rim.
 void coinIcon(int cx, int cy, uint16_t rim) {
   auto& g = gfx();
@@ -139,6 +155,8 @@ void drawHubButton(int x, int y, HubIcon icon, bool pressed) {
     case HubIcon::Dice:    diceIcon(x, y, ink, fill); break;
     case HubIcon::MenuUpright: menuIconUpright(x, y, ink); break;
     case HubIcon::Coin:    coinIcon(x, y, pressed ? theme::TEXT_ON_ACCENT : rgb565(150, 110, 0)); break;
+    case HubIcon::LockUpright: lockIconUpright(x, y, ink, fill); break;
+    case HubIcon::ZeroUpright: zeroIconUpright(x, y, ink, fill); break;
   }
 }
 
