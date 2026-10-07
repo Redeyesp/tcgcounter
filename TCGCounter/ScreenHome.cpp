@@ -2,11 +2,11 @@
  *  ScreenHome — main menu: one button per game, two columns.
  *
  *  ┌──────────────────────────────────────────┐
- *  │ TCG COUNTER                      v0.14.0 │
+ *  │ TCG COUNTER                       vX.Y.Z │
  *  │ [ COMMANDER        ] [ STANDARD         ] │  each button: the game, and
  *  │ [ RIFTBOUND        ] [ LORCANA          ] │  a short line under it
  *  │ [ POKEMON          ] [ DIGIMON          ] │
- *  │ [                 DICE                  ] │
+ *  │ [ KINGDOMS         ] [ DICE             ] │
  *  └──────────────────────────────────────────┘
  *
  *  Touch:   tap a button to open it.
@@ -38,7 +38,8 @@ const MenuItem ITEMS[] = {
   {"LORCANA",   "20 or 25 lore",        SCREEN_LORCANA_SETUP,   theme::PLAYER[1]},
   {"POKEMON",   "damage, bench",        SCREEN_POKEMON_SETUP,   theme::PLAYER[5]},
   {"DIGIMON",   "memory gauge",         SCREEN_DIGIMON_SETUP,   theme::PLAYER[0]},
-  {"DICE",      "D4 D6 D8 D12 D20",     SCREEN_DICE,            theme::TEXT_DIM},
+  {"KINGDOMS",  "hidden roles",         SCREEN_KINGDOMS_SETUP,  theme::ACCENT},
+  {"DICE",      "D4 to D20",            SCREEN_DICE,            theme::TEXT_DIM},
 };
 constexpr int8_t ITEM_COUNT = sizeof(ITEMS) / sizeof(ITEMS[0]);
 

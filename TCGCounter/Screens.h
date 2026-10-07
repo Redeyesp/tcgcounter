@@ -40,3 +40,5 @@ extern const ScreenModule PokemonSetupScreen;  // ScreenPokemonSetup.cpp (contin
 void pokemonRequestCoinFlip();  // ScreenPokemon.cpp: flip a coin when the table opens next
 extern const ScreenModule DigimonScreen;       // ScreenDigimon.cpp (memory gauge laid out like the board)
 extern const ScreenModule DigimonSetupScreen;  // ScreenDigimonSetup.cpp (continue / new game)
+extern const ScreenModule KingdomsScreen;       // ScreenKingdoms.cpp (deal hidden roles / check yours)
+extern const ScreenModule KingdomsSetupScreen;  // ScreenKingdomsSetup.cpp (continue / check my role / deal 4-6)

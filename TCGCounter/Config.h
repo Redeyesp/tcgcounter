@@ -16,7 +16,7 @@
  * ==========================================================================*/
 
 #define FW_NAME     "TCG Counter"
-#define FW_VERSION  "0.14.0"
+#define FW_VERSION  "0.15.0"
 
 /* ============================================================================
  *  1. ROTARY ENCODER (EC11 with push switch)
@@ -162,6 +162,7 @@
 #define DICE_ROLL_MS             1000 // Dice page: how long a die keeps changing before it lands
 #define COIN_FLIP_MS             900  // Pokemon coin flip: how long the coin spins before it lands
 #define POKEMON_BENCH_TIMEOUT_MS 10000 // Pokemon: an opened bench slot goes back to the Active after this idle time (0 = never)
+#define KINGDOMS_PEEK_HOLD_MS    800  // Kingdoms: hold your card this long to see your role again
 #define COMMANDER_FACE_SEATS     1    // 1 = every card faces the player at its table edge
                                       //     (top row upside down, head of table sideways)
                                       // 0 = all cards upright for someone at the bottom edge

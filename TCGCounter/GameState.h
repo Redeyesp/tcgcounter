@@ -25,6 +25,8 @@ enum Screen : uint8_t {
   SCREEN_DIGIMON_SETUP   = 11, // Digimon menu: continue / new game (who goes first) (v0.12+)
   SCREEN_STANDARD        = 12, // MTG Standard 1v1 at 20 life (the Commander table, 2 cards) (v0.14+)
   SCREEN_STANDARD_SETUP  = 13, // Standard menu: continue / high roll / new game (v0.14+)
+  SCREEN_KINGDOMS        = 14, // Kingdoms: dealing hidden roles, checking yours (v0.15+)
+  SCREEN_KINGDOMS_SETUP  = 15, // Kingdoms menu: continue / check my role / deal for 4, 5, 6 (v0.15+)
   SCREEN_COUNT
 };
 
@@ -122,6 +124,30 @@ struct DigimonGame {
   uint8_t turn;    // 0 / 1: whose turn it is
 };
 
+// ---- Kingdoms: Commander with hidden roles, 4-6 players. The device deals
+// the roles as face-down cards; one player at a time opens their eyes and
+// turns one card over. The deck for n players is the first n of
+// King, Bandit, Bandit, Traitor, Knight, Usurper:
+//   4: King, 2 Bandits, Traitor · 5: + Knight · 6: + Usurper
+enum KingdomsRole : uint8_t {
+  KINGDOMS_KING = 0,   // revealed at the start, 50 life, goes first
+  KINGDOMS_KNIGHT,     // protects the King
+  KINGDOMS_BANDIT,     // wins when the King dies
+  KINGDOMS_TRAITOR,    // last one standing
+  KINGDOMS_USURPER,    // kills the King: becomes the new King
+  KINGDOMS_ROLE_COUNT
+};
+constexpr uint8_t KINGDOMS_MIN_PLAYERS = 4;
+constexpr uint8_t KINGDOMS_MAX_PLAYERS = 6;
+constexpr int16_t KINGDOMS_KING_LIFE   = 50;
+
+struct KingdomsGame {
+  uint8_t players;                        // 0 = nothing dealt yet, else 4..6 cards
+  uint8_t drawn;                          // how many players have turned their card over
+  uint8_t role[KINGDOMS_MAX_PLAYERS];     // card k (left to right) -> KingdomsRole
+  uint8_t drawnBy[KINGDOMS_MAX_PLAYERS];  // card k: 0 = still face down, n = the n-th player took it
+};
+
 /* FUTURE: add game data for new modes here (e.g. struct DiceState), add a
  * member to AppState below and extend AppStorage.cpp. */
 
@@ -133,6 +159,7 @@ struct AppState {
   ScoreGame     lorcana;
   PokemonGame   pokemon;
   DigimonGame   digimon;
+  KingdomsGame  kingdoms;
 };
 
 extern AppState g_state;  // the single live copy of all persistent state
@@ -145,6 +172,8 @@ bool operator==(const ScoreGame& a, const ScoreGame& b);
 bool operator==(const PokemonGame& a, const PokemonGame& b);
 bool operator==(const DigimonGame& a, const DigimonGame& b);
 inline bool operator!=(const DigimonGame& a, const DigimonGame& b) { return !(a == b); }
+bool operator==(const KingdomsGame& a, const KingdomsGame& b);
+inline bool operator!=(const KingdomsGame& a, const KingdomsGame& b) { return !(a == b); }
 inline bool operator!=(const PokemonGame& a, const PokemonGame& b) { return !(a == b); }
 bool operator==(const AppState& a, const AppState& b);
 inline bool operator!=(const CommanderGame& a, const CommanderGame& b) { return !(a == b); }
@@ -241,3 +270,18 @@ bool digimonSetMemory(DigimonGame& g, uint8_t p, int value);
 bool digimonAdjust(DigimonGame& g, uint8_t p, int delta);  // +delta for player p
 // The player whose turn it is passes: the opponent gets 3 memory and the turn.
 void digimonPass(DigimonGame& g);
+
+// ---- Kingdoms rules ----
+void kingdomsReset(KingdomsGame& g);  // nothing dealt
+// Copies of `role` in the deck for `players` (0 for a player count outside 4..6).
+uint8_t kingdomsRoleCount(uint8_t players, uint8_t role);
+// Shuffle the deck for `players` (4..6) onto face-down cards; nobody has
+// drawn yet. randBelow(n) returns 0..n-1 (the ESP32's hardware RNG on the
+// device). False (nothing changes) for any other player count.
+bool kingdomsDeal(KingdomsGame& g, uint8_t players, uint8_t (*randBelow)(uint8_t n));
+// The next player turns card `card` over. False if it is not a face-down card.
+bool kingdomsDraw(KingdomsGame& g, uint8_t card);
+inline bool kingdomsDealt(const KingdomsGame& g) { return g.players != 0; }
+inline bool kingdomsAllDrawn(const KingdomsGame& g) { return g.players != 0 && g.drawn >= g.players; }
+// A deal that could have come from kingdomsDeal / kingdomsDraw (or nothing dealt).
+bool kingdomsValid(const KingdomsGame& g);

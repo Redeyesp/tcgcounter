@@ -6,7 +6,8 @@
  *  Standard (Magic 1v1, 20 life), Riftbound (1v1 / 4 players to 8, 2v2 to 11, +1 plus life) and Lorcana
  *  (2 or 4 players, 20 or 25 lore) counters, Pokemon (portrait: Active
  *  damage, PSN / BRN, KO, bench of 5 with swap, coin flip), Digimon (memory
- *  gauge laid out like the board, turn, PASS), a High Roll (D20) in every
+ *  gauge laid out like the board, turn, PASS), Kingdoms (hidden roles for
+ *  4-6 players, dealt one player at a time), a High Roll (D20) in every
  *  game's menu and a Dice page (D4..D20): the 🎲 button on every table, or
  *  DICE on Home.
  *

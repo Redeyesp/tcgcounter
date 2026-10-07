@@ -26,6 +26,9 @@
  *                             the first two are read
  *                        st   (5 bytes) Standard (v0.14+): life P1, life P2 (i16, little
  *                             endian), selected player. Missing -> both at 20
+ *                        kd   (14 bytes) Kingdoms (v0.15+): players (0 = nothing dealt),
+ *                             cards drawn, role of cards 1..6, n-th player who drew
+ *                             cards 1..6 (0 = face down). Missing -> nothing dealt
  *                        rb   Riftbound, lc Lorcana:
  *                             12 bytes from v0.9: players, teams, target,
  *                               score P1..P4, plus life P1..P4, selected
@@ -135,6 +138,30 @@ static void saveStandard(Preferences& p, const CommanderGame& g) {
   p.putBytes("st", b, sizeof(b));
 }
 
+// KingdomsGame <-> 14-byte blob {players, drawn, role[6], drawnBy[6]}
+static const size_t KD_BLOB = 2 + 2 * KINGDOMS_MAX_PLAYERS;
+static void loadKingdoms(Preferences& p, KingdomsGame& g) {
+  if (!p.isKey("kd") || p.getBytesLength("kd") != KD_BLOB) return;  // keep defaults
+  uint8_t b[KD_BLOB];
+  p.getBytes("kd", b, sizeof(b));
+  g.players = b[0];
+  g.drawn = b[1];
+  for (uint8_t k = 0; k < KINGDOMS_MAX_PLAYERS; ++k) {
+    g.role[k] = b[2 + k];
+    g.drawnBy[k] = b[2 + KINGDOMS_MAX_PLAYERS + k];
+  }
+}
+static void saveKingdoms(Preferences& p, const KingdomsGame& g) {
+  uint8_t b[KD_BLOB];
+  b[0] = g.players;
+  b[1] = g.drawn;
+  for (uint8_t k = 0; k < KINGDOMS_MAX_PLAYERS; ++k) {
+    b[2 + k] = g.role[k];
+    b[2 + KINGDOMS_MAX_PLAYERS + k] = g.drawnBy[k];
+  }
+  p.putBytes("kd", b, sizeof(b));
+}
+
 static void saveScore(Preferences& p, const char* key, const ScoreGame& g) {
   uint8_t b[SCORE_BLOB];
   b[0] = g.players;
@@ -182,6 +209,7 @@ void loadState() {
       loadPokemon(p, g_state.pokemon);
       loadDigimon(p, g_state.digimon);
       loadStandard(p, g_state.standard);
+      loadKingdoms(p, g_state.kingdoms);
       restored = true;
     }
     p.end();
@@ -257,6 +285,7 @@ static void writeState(const AppState& s) {
   if (all || s.pokemon != s_saved.pokemon)     { savePokemon(p, s.pokemon);       ++writes; }
   if (all || s.digimon != s_saved.digimon)     { saveDigimon(p, s.digimon);       ++writes; }
   if (all || s.standard != s_saved.standard)   { saveStandard(p, s.standard);     ++writes; }
+  if (all || s.kingdoms != s_saved.kingdoms)   { saveKingdoms(p, s.kingdoms);     ++writes; }
   p.end();
 
   s_saved = s;

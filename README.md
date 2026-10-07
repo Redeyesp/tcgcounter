@@ -2,7 +2,7 @@
 
 Target: **ESP32-2432S028R "Cheap Yellow Display" (CYD)** + external **EC11 rotary encoder** with push switch.
 
-A tabletop counter with six games on the home menu (buttons in two columns):
+A tabletop counter with seven games on the home menu (buttons in two columns):
 
 * **COMMANDER** — 2 to 6 players, every card facing its player, with a choice of table
   layouts for 3, 5 and 6 players; Lotus-style commander damage with **Partner** support
@@ -17,6 +17,10 @@ A tabletop counter with six games on the home menu (buttons in two columns):
 * **DIGIMON** — the memory gauge laid out like the gauge board players know
   (5 4 3 2 1 **0** 1 2 3 4 5 across the middle, each player's 6–10 folded back on their
   own side), whose turn it is and **PASS**;
+* **KINGDOMS** — hidden roles for Commander, 4–6 players (King, Knight, Bandits, Traitor,
+  Usurper): face-down cards, everyone closes their eyes and one player at a time turns a
+  card over to see their role with its artwork; then straight to the Commander table, and
+  anyone can check their role again later;
 
 plus **High Roll** in every game's **≡** menu to decide who goes first (Pokémon: coin flip; Digimon: pick BOTTOM or TOP in its menu), and a **Dice** page
 (D4 / D6 / D8 / D12 / D20) behind the round **🎲** button on the game tables and as **DICE**
@@ -31,9 +35,9 @@ the screens are rendered off-screen from the real drawing code to check the layo
 the USB-C (ST7789) board.
 
 ![UI preview](docs/ui_preview.png)
-*Rendered from the actual screen code at 2× scale. Left: the home menu, one button per game
-in two columns. Middle: Standard (Magic 1v1, 20 life), player 1 at 13 and player 2 at 7 — player 1's card
-faces the far side of the table. Right: the Standard menu.*
+*Rendered from the actual screen code at 2× scale. Kingdoms: the second of five players picks
+a face-down card (the first one took the middle card), a role page (here the King), the
+close-your-eyes page between players, and the home menu with KINGDOMS next to DICE.*
 
 ---
 
@@ -65,7 +69,7 @@ Using it:
 
 | Where | Touch | Encoder |
 |---|---|---|
-| Home | Tap a button to open it (**COMMANDER**, **STANDARD**, **RIFTBOUND**, **LORCANA**, **POKEMON**, **DIGIMON**, **DICE**) | Turn = move yellow focus (left to right, then down) · Press = open |
+| Home | Tap a button to open it (**COMMANDER**, **STANDARD**, **RIFTBOUND**, **LORCANA**, **POKEMON**, **DIGIMON**, **KINGDOMS**, **DICE**) | Turn = move yellow focus (left to right, then down) · Press = open |
 | Commander menu | **CONTINUE** = back to the running game · **TABLE** = another layout for the running game (nothing is reset) · **HIGH ROLL** = back to the table and roll for who goes first · **2 3 4 5 6** = new game with that many players (3, 5 and 6 first show the table picker; asks before wiping a game) · **< HOME** = home menu | Turn = move yellow focus · Press = choose · Long-press in the picker = back |
 | Commander | Tap a card = select player · Tap/hold **−**/**+** = life (hold repeats) · **Swipe sideways on a card's number** = commander damage mode for that player · Tap centre **≡** = Commander menu · Tap **🎲** = Dice page | Turn = selected player's life ±1 per click · Press = next player (P1→P2→…→P1) · **Long-press** = commander damage mode for the selected player |
 | Commander damage mode | −/+ on an **opponent's** card = damage that opponent dealt to the victim · −/+ on the victim's card = life · small **+** on an opponent's card = that player has a **Partner** (then tap the left / right number to pick which commander −/+ count for; **×** takes the partner away while it has dealt no damage) · Tap centre **✕**, or swipe the victim's card again = close · Swipe another card = switch player | Turn = damage from the focused opponent (commander) · Press = next opponent, or its partner · Long-press = close |
@@ -77,6 +81,8 @@ Using it:
 | Riftbound / Lorcana | Tap/hold **−**/**+** = score (hold repeats) · Tap a card = select · **+1** (Riftbound) = plus life on / off · Round **≡** = the game's menu · **🎲** = Dice page · **↻** = Restart (asks first) | Turn = selected player's score · Press = next player · Long-press = Restart (asks first) |
 | Digimon | Tap a circle on the gauge = put the counter there (**0** in the middle = memory 0; 1+ on the waiting player's side passes the turn) · **PASS** (whose turn it is) = opponent gets 3 · either round **≡** = Digimon menu | Turn = counter one circle per click, always the same way: clockwise toward the top player, counter-clockwise toward the bottom player · Long-press = PASS |
 | Digimon menu | **CONTINUE** · new game: **BOTTOM** / **TOP** goes first (asks first) · **< HOME** | Turn = move yellow focus · Press = choose |
+| Kingdoms menu | **CONTINUE DEAL** / **CHECK MY ROLE** · deal for **4** / **5** / **6** players (asks before replacing a deal) · **< HOME** | Turn = move yellow focus · Press = choose |
+| Kingdoms | Cards: tap a face-down card = see your role (dealing) · **hold** your card = see it again (checking) · **< MENU**. Role page: **NEXT** / **DONE**. Close-your-eyes page: tap anywhere when ready. Last page: **COMMANDER** (table for that many players; asks if a Commander game is running) · **MENU** | Turn = pick a card / button · Press = turn it over, show it, go on · Long-press on the cards = menu |
 | Pokémon (device standing) | Tap/hold **−**/**+** = damage ±10 on what is open (hold repeats) · **PSN** / **BRN** = poisoned / burned on/off · **KO** = back to 0 · tap a bench slot **1–5** = open it (−/+, KO, **⇅ SWAP**, **<** back) · round **coin** = coin flip on both halves · **≡** = Pokémon menu (CONTINUE / COIN FLIP / NEW GAME / HOME) | Turn = ±10 on what the selected player has open · Press = other player · Long-press = back to the Active · Coin page: press = flip again, long-press = back |
 
 **Players and seating (2–6).** Home → **COMMANDER** opens the Commander menu. **CONTINUE**
@@ -216,6 +222,35 @@ always the same way, whoever's turn it is: **clockwise toward the top player**,
 counter-clockwise toward the bottom player (along the middle row: clockwise = to the right as
 the bottom player sees it).
 
+**Kingdoms (hidden roles).** Home → **KINGDOMS** opens its menu. Choose **4**, **5** or **6**
+players and the device shuffles that many role cards with its hardware random generator:
+
+| Players | Roles |
+|---|---|
+| 4 | King, Bandit ×2, Traitor |
+| 5 | King, Knight, Bandit ×2, Traitor |
+| 6 | King, Knight, Bandit ×2, Traitor, Usurper |
+
+The cards lie face down on the screen. Everyone closes their eyes; the first player opens
+theirs and taps a card. It turns over: the role's artwork (crown, shield and sword, masked
+bandit, hooded traitor, cracked crown) and what that role must do. **NEXT** hides it and shows
+*CLOSE YOUR EYES and call the person next to you*; that player taps the screen and picks one
+of the cards still face down (taken ones leave an empty slot with the order they were taken
+in). After the last player: *OPEN YOUR EYES!* — the King reveals themself, starts at **50**
+life (tap + ten times on their card) and goes first. **COMMANDER** opens the Commander table
+for that many players at 40 (it asks first if a Commander game is running); **MENU** goes
+back to the Kingdoms menu.
+
+The goals: **King** — outlast everyone but the Knight. **Knight** — protect the King; win
+together with them. **Bandits** — win as soon as the King is out. **Traitor** — be the last
+player standing. **Usurper** — finish off the King yourself: you become King at 50 life and
+the old King takes the Usurper's role at 1 life.
+
+Forgot your role? Kingdoms menu → **CHECK MY ROLE**: every card carries the order it was drawn
+in; while the others look away, **hold** yours for a moment (a quick tap does nothing) and
+its role shows; **DONE** hides it. The deal is saved, so this works after a restart too.
+Dealing again asks first.
+
 **High Roll (who goes first).** Open the game's **≡** menu and choose **HIGH ROLL** (top right
 of the game's menu). Every player's card turns into a
 D20 whose face changes fast, slows down and lands on a real roll (the ESP32's hardware random
@@ -329,6 +364,9 @@ tcgcounter/
     ├── ScreenPokemonSetup.cpp  Pokemon menu (portrait): continue / coin flip / new game
     ├── ScreenDigimon.cpp     Digimon memory gauge laid out like the board: turn, PASS
     ├── ScreenDigimonSetup.cpp  Digimon menu: continue / new game (who goes first)
+    ├── ScreenKingdomsSetup.cpp Kingdoms menu: continue deal / check my role / deal for 4-6
+    ├── ScreenKingdoms.cpp    Kingdoms: face-down cards, role reveal, close-your-eyes, to Commander
+    ├── KingdomsArt.h/.cpp    Kingdoms role names, goals, colours and artwork (drawn from shapes)
     ├── HighRoll.h/.cpp       high roll logic: D20 per player, tie-breaks (no drawing)
     ├── TableDraw.h/.cpp      cards that face their player (off-screen, rotated), round buttons, dice shapes
     ├── UiConfirm.h/.cpp      full-screen CANCEL / OK question (new game, restart)
@@ -381,6 +419,7 @@ Key design rules:
 | `tcg` | `cd` | commander damage, 6×6 bytes `[victim][source]` (v0.2–v0.3 saved 4×4: converted on load, the game is kept; missing in v0.1 saves → all 0) |
 | `tcg` | `cd2`, `pt` | Partner: the partners' commander damage (6×6 bytes) and which players have one (bit mask) (v0.10+; missing → none) |
 | `tcg` | `pk` | Pokémon, 27 bytes (v0.11+): per player the Active's damage, PSN/BRN bits and bench 1–5 damage, then the selected player (missing → a fresh game) |
+| `tcg` | `kd` | Kingdoms, 14 bytes (v0.15+): players (0 = nothing dealt), cards drawn, role of cards 1–6, the n-th player who drew cards 1–6 (0 = face down). A deal that does not add up is thrown away (missing → nothing dealt) |
 | `tcg` | `st` | Standard, 5 bytes (v0.14+): life P1, life P2 (int16, little endian), selected player (missing → both at 20) |
 | `tcg` | `dg` | Digimon, 2 bytes (v0.13+): memory (−10..10, > 0 = the bottom player's side), whose turn (missing → memory 0; a 4-byte v0.12 save keeps memory and turn, its memory lock is dropped) |
 | `tcgtouch` | `cal`, `calv` | touch calibration (separate, so a future game reset can't erase it) |
@@ -589,7 +628,7 @@ Restart, High Roll and Dice for free. For anything different:
 | 1 | `GameState.h` | Add the new state as a member of `AppState`, update `operator==`, `appStateSetDefaults()` and `appStateSanitize()` in `GameState.cpp`. Rules go in `GameState.cpp` or a new file — no drawing there. |
 | 2 | `ScreenXxx.cpp` (new) | Implement `onEnter`, `handleInput`, `render` (and `tick` for timers) and define `const ScreenModule XxxScreen = {...};`. `ScreenScore.cpp` is the simplest template: diff-based rendering, cards via `TableDraw`, `ConfirmDialog` for resets, `DiceOverlay` for dice, `HighRoll` for who goes first. |
 | 3 | `GameState.h`, `Screens.h`, `App.cpp` | Add a `Screen` value **at the end** of the enum (values are stored in flash — never renumber), declare the module and return it in `moduleFor()`. |
-| 4 | `ScreenHome.cpp` | Add a button (name, short line under it, stripe colour). The buttons fill two columns; seven fit with DICE across the bottom — more need `ROW_H` / `ROW_PITCH` re-spaced. |
+| 4 | `ScreenHome.cpp` | Add a button (name, short line under it, stripe colour). The buttons fill two columns; eight fill the screen — more need `ROW_H` / `ROW_PITCH` re-spaced (an odd one out at the end spans both columns). |
 | 5 | `AppStorage.cpp` | Add NVS keys for the new state in `loadState()` and `writeState()`. |
 
 More Commander counters (poison, energy, tax) belong in `CommanderGame` in `GameState.h` and,

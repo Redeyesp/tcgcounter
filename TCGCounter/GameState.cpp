@@ -306,6 +306,79 @@ void digimonPass(DigimonGame& g) {
   g.turn = next;
 }
 
+// ---- Kingdoms
+static const uint8_t KINGDOMS_DECK[KINGDOMS_MAX_PLAYERS] = {
+  KINGDOMS_KING, KINGDOMS_BANDIT, KINGDOMS_BANDIT, KINGDOMS_TRAITOR, KINGDOMS_KNIGHT, KINGDOMS_USURPER};
+
+void kingdomsReset(KingdomsGame& g) {
+  g.players = 0;
+  g.drawn = 0;
+  for (uint8_t k = 0; k < KINGDOMS_MAX_PLAYERS; ++k) g.role[k] = g.drawnBy[k] = 0;
+}
+
+uint8_t kingdomsRoleCount(uint8_t players, uint8_t role) {
+  if (players < KINGDOMS_MIN_PLAYERS || players > KINGDOMS_MAX_PLAYERS) return 0;
+  uint8_t n = 0;
+  for (uint8_t k = 0; k < players; ++k) n += KINGDOMS_DECK[k] == role;
+  return n;
+}
+
+bool kingdomsDeal(KingdomsGame& g, uint8_t players, uint8_t (*randBelow)(uint8_t n)) {
+  if (players < KINGDOMS_MIN_PLAYERS || players > KINGDOMS_MAX_PLAYERS || !randBelow) return false;
+  kingdomsReset(g);
+  g.players = players;
+  for (uint8_t k = 0; k < players; ++k) g.role[k] = KINGDOMS_DECK[k];
+  for (uint8_t k = players - 1; k > 0; --k) {  // Fisher-Yates
+    uint8_t j = randBelow((uint8_t)(k + 1));
+    if (j > k) j = k;
+    const uint8_t t = g.role[k];
+    g.role[k] = g.role[j];
+    g.role[j] = t;
+  }
+  return true;
+}
+
+bool kingdomsDraw(KingdomsGame& g, uint8_t card) {
+  if (card >= g.players || g.drawnBy[card] != 0 || g.drawn >= g.players) return false;
+  g.drawnBy[card] = ++g.drawn;
+  return true;
+}
+
+bool kingdomsValid(const KingdomsGame& g) {
+  if (g.players == 0) {
+    if (g.drawn) return false;
+    for (uint8_t k = 0; k < KINGDOMS_MAX_PLAYERS; ++k)
+      if (g.role[k] || g.drawnBy[k]) return false;
+    return true;
+  }
+  if (g.players < KINGDOMS_MIN_PLAYERS || g.players > KINGDOMS_MAX_PLAYERS || g.drawn > g.players) return false;
+  uint8_t count[KINGDOMS_ROLE_COUNT] = {};
+  uint8_t seen = 0;  // bit n-1: some card was taken n-th
+  for (uint8_t k = 0; k < KINGDOMS_MAX_PLAYERS; ++k) {
+    if (k >= g.players) {
+      if (g.role[k] || g.drawnBy[k]) return false;
+      continue;
+    }
+    if (g.role[k] >= KINGDOMS_ROLE_COUNT) return false;
+    ++count[g.role[k]];
+    const uint8_t n = g.drawnBy[k];
+    if (n == 0) continue;
+    if (n > g.drawn || (seen & (1u << (n - 1)))) return false;
+    seen = (uint8_t)(seen | (1u << (n - 1)));
+  }
+  if (seen != (uint8_t)((1u << g.drawn) - 1)) return false;  // exactly 1..drawn
+  for (uint8_t r = 0; r < KINGDOMS_ROLE_COUNT; ++r)
+    if (count[r] != kingdomsRoleCount(g.players, r)) return false;
+  return true;
+}
+
+bool operator==(const KingdomsGame& a, const KingdomsGame& b) {
+  if (a.players != b.players || a.drawn != b.drawn) return false;
+  for (uint8_t k = 0; k < KINGDOMS_MAX_PLAYERS; ++k)
+    if (a.role[k] != b.role[k] || a.drawnBy[k] != b.drawnBy[k]) return false;
+  return true;
+}
+
 static void digimonSanitize(DigimonGame& g) {
   g.memory = clampMemory(g.memory);
   if (g.turn > 1) g.turn = 0;
@@ -315,6 +388,7 @@ void appStateSetDefaults(AppState& s) {
   s.screen = SCREEN_HOME;
   commanderNewGame(s.commander);
   standardNewGame(s.standard);
+  kingdomsReset(s.kingdoms);
   scoreNewGame(s.riftbound, 2, RIFTBOUND_TARGET);
   scoreNewGame(s.lorcana, 2, LORCANA_TARGET);
   pokemonNewGame(s.pokemon);
@@ -327,6 +401,7 @@ void appStateSanitize(AppState& s) {
   scoreSanitize(s.lorcana, LORCANA_TARGET);
   pokemonSanitize(s.pokemon);
   digimonSanitize(s.digimon);
+  if (!kingdomsValid(s.kingdoms)) kingdomsReset(s.kingdoms);  // a broken deal: deal again
   CommanderGame& c = s.commander;
   c.players = clampPlayers(c.players);
   c.layout = clampLayout(c.players, c.layout);
@@ -392,5 +467,5 @@ bool operator==(const DigimonGame& a, const DigimonGame& b) {
 bool operator==(const AppState& a, const AppState& b) {
   return a.screen == b.screen && a.commander == b.commander && a.standard == b.standard &&
          a.riftbound == b.riftbound && a.lorcana == b.lorcana && a.pokemon == b.pokemon &&
-         a.digimon == b.digimon;
+         a.digimon == b.digimon && a.kingdoms == b.kingdoms;
 }
