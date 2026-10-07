@@ -18,6 +18,9 @@
  *                        cd2  partner commander damage [victim][source], 36 bytes (v0.10+;
  *                             missing -> all zero)
  *                        pt   (u8)  partners: bit p = player p has two commanders (v0.10+)
+ *                        pk   (27 bytes) Pokemon (v0.11+): for P1 then P2: Active damage
+ *                             (i16, little endian), status bits, bench 1..5 damage (i16 each);
+ *                             then the selected player. Missing -> a fresh game
  *                        rb   Riftbound, lc Lorcana:
  *                             12 bytes from v0.9: players, teams, target,
  *                               score P1..P4, plus life P1..P4, selected
@@ -66,6 +69,35 @@ static void loadScore(Preferences& p, const char* key, ScoreGame& g) {
     g.selected = b[2];
   }
 }
+// PokemonGame <-> 27-byte blob
+static const size_t PK_SIDE = 2 + 1 + 2 * POKEMON_BENCH;
+static const size_t PK_BLOB = 2 * PK_SIDE + 1;
+static void put16(uint8_t* b, int16_t v) { b[0] = (uint8_t)(v & 0xFF); b[1] = (uint8_t)((uint16_t)v >> 8); }
+static int16_t get16(const uint8_t* b) { return (int16_t)(b[0] | (b[1] << 8)); }
+static void loadPokemon(Preferences& p, PokemonGame& g) {
+  if (!p.isKey("pk") || p.getBytesLength("pk") != PK_BLOB) return;  // keep defaults
+  uint8_t b[PK_BLOB];
+  p.getBytes("pk", b, sizeof(b));
+  for (uint8_t i = 0; i < 2; ++i) {
+    const uint8_t* s = b + i * PK_SIDE;
+    g.side[i].active = get16(s);
+    g.side[i].status = s[2];
+    for (uint8_t k = 0; k < POKEMON_BENCH; ++k) g.side[i].bench[k] = get16(s + 3 + 2 * k);
+  }
+  g.selected = b[PK_BLOB - 1];
+}
+static void savePokemon(Preferences& p, const PokemonGame& g) {
+  uint8_t b[PK_BLOB];
+  for (uint8_t i = 0; i < 2; ++i) {
+    uint8_t* s = b + i * PK_SIDE;
+    put16(s, g.side[i].active);
+    s[2] = g.side[i].status;
+    for (uint8_t k = 0; k < POKEMON_BENCH; ++k) put16(s + 3 + 2 * k, g.side[i].bench[k]);
+  }
+  b[PK_BLOB - 1] = g.selected;
+  p.putBytes("pk", b, sizeof(b));
+}
+
 static void saveScore(Preferences& p, const char* key, const ScoreGame& g) {
   uint8_t b[SCORE_BLOB];
   b[0] = g.players;
@@ -110,6 +142,7 @@ void loadState() {
       }
       loadScore(p, "rb", g_state.riftbound);
       loadScore(p, "lc", g_state.lorcana);
+      loadPokemon(p, g_state.pokemon);
       restored = true;
     }
     p.end();
@@ -182,6 +215,7 @@ static void writeState(const AppState& s) {
   }
   if (all || s.riftbound != s_saved.riftbound) { saveScore(p, "rb", s.riftbound); ++writes; }
   if (all || s.lorcana != s_saved.lorcana)     { saveScore(p, "lc", s.lorcana);   ++writes; }
+  if (all || s.pokemon != s_saved.pokemon)     { savePokemon(p, s.pokemon);       ++writes; }
   p.end();
 
   s_saved = s;

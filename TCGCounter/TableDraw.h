@@ -17,7 +17,8 @@ using CardPainter = void (*)(lgfx::LovyanGFX& c, int ox, int oy, const void* ctx
 // cards; bigger cards are drawn in bands.
 void drawSeatCard(const Seat& seat, CardPainter paint, const void* ctx);
 
-enum class HubIcon : uint8_t { Menu, Close, Home, Restart, HighRoll, Dice };
+// MenuUpright: the ≡ bars for a screen read standing up (portrait, Pokemon).
+enum class HubIcon : uint8_t { Menu, Close, Home, Restart, HighRoll, Dice, MenuUpright, Coin };
 
 // Round button between the cards, with a dark moat around it
 // (HUB_R / HUB_MOAT / HUB_HIT_R in CommanderLayout.h).

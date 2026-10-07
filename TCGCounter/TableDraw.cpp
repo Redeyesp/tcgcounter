@@ -29,6 +29,20 @@ void menuIcon(int cx, int cy, uint16_t color) {
   for (int k = -1; k <= 1; ++k) g.fillRect(cx - 8, cy - 1 + 6 * k, 17, 3, color);
 }
 
+// The same bars running the other way: horizontal on a standing (portrait) screen.
+void menuIconUpright(int cx, int cy, uint16_t color) {
+  auto& g = gfx();
+  for (int k = -1; k <= 1; ++k) g.fillRect(cx - 1 + 6 * k, cy - 8, 3, 17, color);
+}
+
+// A gold coin with a rim.
+void coinIcon(int cx, int cy, uint16_t rim) {
+  auto& g = gfx();
+  g.fillCircle(cx, cy, 10, theme::ACCENT);
+  g.drawCircle(cx, cy, 7, rim);
+  g.drawCircle(cx, cy, 6, rim);
+}
+
 void closeIcon(int cx, int cy, uint16_t color) {
   auto& g = gfx();
   for (int t = -1; t <= 1; ++t) {  // 3 px thick X
@@ -123,6 +137,8 @@ void drawHubButton(int x, int y, HubIcon icon, bool pressed) {
     case HubIcon::Restart: restartIcon(x, y, ink); break;
     case HubIcon::HighRoll: highRollIcon(x, y, ink); break;
     case HubIcon::Dice:    diceIcon(x, y, ink, fill); break;
+    case HubIcon::MenuUpright: menuIconUpright(x, y, ink); break;
+    case HubIcon::Coin:    coinIcon(x, y, pressed ? theme::TEXT_ON_ACCENT : rgb565(150, 110, 0)); break;
   }
 }
 

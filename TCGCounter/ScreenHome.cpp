@@ -1,5 +1,5 @@
 /* ============================================================================
- *  ScreenHome — main menu: COMMANDER / RIFTBOUND / LORCANA / DICE.
+ *  ScreenHome — main menu: COMMANDER / RIFTBOUND / LORCANA / POKEMON / DICE.
  *
  *  Touch:   tap an entry to open it.
  *  Encoder: turn moves the yellow focus frame, press opens the focused entry.
@@ -25,11 +25,12 @@ const MenuItem ITEMS[] = {
   {"COMMANDER", SCREEN_COMMANDER_SETUP, true},  // menu first: players / continue / new game
   {"RIFTBOUND", SCREEN_RIFTBOUND_SETUP, true},  // menu first: 1v1 / 4 players / 2v2
   {"LORCANA",   SCREEN_LORCANA_SETUP,   true},  // menu first: 2 or 4 players, 20 or 25 lore
+  {"POKEMON",   SCREEN_POKEMON_SETUP,   true},  // menu first (device standing)
   {"DICE",      SCREEN_DICE,            true},  // D4..D20 on their own
 };
 constexpr int8_t ITEM_COUNT = sizeof(ITEMS) / sizeof(ITEMS[0]);
 
-constexpr int ITEM_X = 16, ITEM_W = 288, ITEM_H = 44, ITEM_Y0 = 42, ITEM_PITCH = 49;  // 4 entries
+constexpr int ITEM_X = 16, ITEM_W = 288, ITEM_H = 36, ITEM_Y0 = 40, ITEM_PITCH = 40;  // 5 entries
 
 Rect itemRect(int8_t i) { return Rect{ITEM_X, (int16_t)(ITEM_Y0 + i * ITEM_PITCH), ITEM_W, ITEM_H}; }
 
@@ -55,7 +56,7 @@ void drawItem(int8_t i) {
   g.fillRoundRect(r.x, r.y, r.w, r.h, 12, fill);
   if (i == s_focus) uiRoundFrame(g, r.x, r.y, r.w, r.h, 12, 3, theme::ACCENT);
 
-  g.setFont(theme::fontTitle());
+  g.setFont(theme::fontButton());  // five entries: the 12 pt font keeps them airy
   g.setTextDatum(lgfx::textdatum_t::middle_left);
   g.setTextColor(it.available ? theme::TEXT : theme::TEXT_DIM);
   g.drawString(it.label, r.x + 18, r.cy() + 1);

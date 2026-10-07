@@ -2,7 +2,7 @@
 
 Target: **ESP32-2432S028R "Cheap Yellow Display" (CYD)** + external **EC11 rotary encoder** with push switch.
 
-A tabletop counter with three games on the home menu:
+A tabletop counter with four games on the home menu:
 
 * **COMMANDER** — 2 to 6 players, every card facing its player, with a choice of table
   layouts for 3, 5 and 6 players; Lotus-style commander damage with **Partner** support
@@ -10,9 +10,11 @@ A tabletop counter with three games on the home menu:
 * **RIFTBOUND** — 1v1 or 4 players free-for-all, first to **8** points, or **2v2** teams to
   **11**; every card has a **+1** "plus life" button (one extra point each);
 * **LORCANA** — 2 or 4 players, first to **20** or **25** lore;
+* **POKEMON** — the device stands up, one half per player: the Active Pokémon's damage in
+  tens with **PSN** / **BRN** and **KO**, a bench of 5 with **SWAP**, and a coin flip;
 
-plus **High Roll** in every game's **≡** menu to decide who goes first, and a **Dice** page
-(D4 / D6 / D8 / D12 / D20) behind the round **🎲** button on every game table and as **DICE**
+plus **High Roll** in every game's **≡** menu to decide who goes first (Pokémon: coin flip), and a **Dice** page
+(D4 / D6 / D8 / D12 / D20) behind the round **🎲** button on the game tables and as **DICE**
 on the home menu, with touch and encoder working at the same time, and every game saved to
 flash so it survives power-off.
 
@@ -24,10 +26,9 @@ the screens are rendered off-screen from the real drawing code to check the layo
 the USB-C (ST7789) board.
 
 ![UI preview](docs/ui_preview.png)
-*Rendered from the actual screen code at 2× scale (320×240 panel). Top: the 6-player table
-picker (3 + 3 / ENDS), a 6-player ENDS game, commander damage with partners (P1 and P4 have
-two commanders: one number each). Bottom: the 3-player picker (P3 left / middle / right), a
-3-player MIDDLE table, partners on the ENDS table.*
+*Rendered from the actual screen code at 2× scale, shown the way the device stands for
+Pokémon (portrait, player 1 at the top): the table (P1 poisoned, P2 poisoned and burned), bench
+slot 4 opened with SWAP, a coin flip on both halves, the Pokémon menu.*
 
 ---
 
@@ -67,6 +68,7 @@ Using it:
 | High roll result | Tap anywhere = back to the game (that tap changes nothing) · **≡ → HIGH ROLL** = roll again | Any turn or press = back to the game |
 | Riftbound / Lorcana menu | **CONTINUE** = back to the running game · **HIGH ROLL** · new game: Riftbound **1v1** / **4P** / **2v2**, Lorcana **2P** / **4P** to **20** / **25** (asks first) · **< HOME** | Turn = move yellow focus · Press = choose |
 | Riftbound / Lorcana | Tap/hold **−**/**+** = score (hold repeats) · Tap a card = select · **+1** (Riftbound) = plus life on / off · Round **≡** = the game's menu · **🎲** = Dice page · **↻** = Restart (asks first) | Turn = selected player's score · Press = next player · Long-press = Restart (asks first) |
+| Pokémon (device standing) | Tap/hold **−**/**+** = damage ±10 on what is open (hold repeats) · **PSN** / **BRN** = poisoned / burned on/off · **KO** = back to 0 · tap a bench slot **1–5** = open it (−/+, KO, **⇅ SWAP**, **<** back) · round **coin** = coin flip on both halves · **≡** = Pokémon menu (CONTINUE / COIN FLIP / NEW GAME / HOME) | Turn = ±10 on what the selected player has open · Press = other player · Long-press = back to the Active · Coin page: press = flip again, long-press = back |
 
 **Players and seating (2–6).** Home → **COMMANDER** opens the Commander menu. **CONTINUE**
 goes back to the game in progress; a number starts a **new game** for that many players.
@@ -162,6 +164,22 @@ at most one: tap the gold +1 again to take it back. **−** / **+** keep countin
 points underneath (they stop at the target), so − never removes the +1 by accident. The
 targets live in `GameState.h` (`RIFTBOUND_TARGET`, `RIFTBOUND_TEAM_TARGET`, `LORCANA_TARGET`,
 `LORCANA_LONG_TARGET`), the formats in the menu in `ScreenScoreSetup.cpp`.
+
+**Pokémon.** Home → **POKEMON** opens its menu: **CONTINUE**, **COIN FLIP**, **NEW GAME**
+(everything back to 0; asks first) and **HOME**. Stand the device up (portrait) between the
+players: player 1 sits at the top short edge (their half is upside down), player 2 at the
+bottom. Each half, from the middle out: **PSN** (poisoned), **BRN** (burned) and **KO**; the
+Active Pokémon's damage with big **−** / **+** (10 per tap, hold repeats); and nearest the
+player the bench, slots **1 2 3 4 5** with their damage (0 = no damage or an empty slot: the
+players know which). Tap a bench slot to open it: the big area shows **BENCH n** with its own
+**−** / **+**, **KO**, **⇅ SWAP** and **<** (back to the Active; tapping the slot again, or
+10 s without touching that half, does the same — `POKEMON_BENCH_TIMEOUT_MS`). **SWAP** makes
+that bench Pokémon the Active and puts the old Active in its slot with its damage; PSN and BRN
+end, as they do when the Active goes to the bench. **KO** puts that Pokémon's damage back to 0
+(the Active also loses PSN / BRN) — after a KO, open the bench Pokémon that comes in and
+**SWAP**. The round **coin** button flips a coin on both halves at once, each facing its
+player (**FLIP** again, **BACK**); the result comes from the ESP32's random generator.
+Pokémon has no dice button. Prize cards are left to the players.
 
 **High Roll (who goes first).** Open the game's **≡** menu and choose **HIGH ROLL** (top right
 of the game's menu). Every player's card turns into a
@@ -270,6 +288,8 @@ tcgcounter/
     ├── ScoreLayout.h/.cpp    Riftbound / Lorcana tables (2 or 4 cards), card geometry, touch mapping
     ├── ScreenScore.cpp       Riftbound + Lorcana: score race with +1 plus life and Restart
     ├── ScreenDice.cpp        Home -> DICE: the Dice page on its own
+    ├── ScreenPokemon.cpp     Pokemon table (portrait): Active, PSN/BRN, KO, bench, swap, coin flip
+    ├── ScreenPokemonSetup.cpp  Pokemon menu (portrait): continue / coin flip / new game
     ├── HighRoll.h/.cpp       high roll logic: D20 per player, tie-breaks (no drawing)
     ├── TableDraw.h/.cpp      cards that face their player (off-screen, rotated), round buttons, dice shapes
     ├── UiConfirm.h/.cpp      full-screen CANCEL / OK question (new game, restart)
@@ -321,6 +341,7 @@ Key design rules:
 | `tcg` | `rb`, `lc` | Riftbound / Lorcana, 12 bytes each (v0.9+): cards (2/4), teams, target, scores P1–P4, +1 P1–P4, selected player. v0.5–v0.8 saved 3 bytes (P1, P2, selected): loaded as a 2-player game with the default target. Missing → a fresh 2-player game |
 | `tcg` | `cd` | commander damage, 6×6 bytes `[victim][source]` (v0.2–v0.3 saved 4×4: converted on load, the game is kept; missing in v0.1 saves → all 0) |
 | `tcg` | `cd2`, `pt` | Partner: the partners' commander damage (6×6 bytes) and which players have one (bit mask) (v0.10+; missing → none) |
+| `tcg` | `pk` | Pokémon, 27 bytes (v0.11+): per player the Active's damage, PSN/BRN bits and bench 1–5 damage, then the selected player (missing → a fresh game) |
 | `tcgtouch` | `cal`, `calv` | touch calibration (separate, so a future game reset can't erase it) |
 
 ---
@@ -527,7 +548,7 @@ Restart, High Roll and Dice for free. For anything different:
 | 1 | `GameState.h` | Add the new state as a member of `AppState`, update `operator==`, `appStateSetDefaults()` and `appStateSanitize()` in `GameState.cpp`. Rules go in `GameState.cpp` or a new file — no drawing there. |
 | 2 | `ScreenXxx.cpp` (new) | Implement `onEnter`, `handleInput`, `render` (and `tick` for timers) and define `const ScreenModule XxxScreen = {...};`. `ScreenScore.cpp` is the simplest template: diff-based rendering, cards via `TableDraw`, `ConfirmDialog` for resets, `DiceOverlay` for dice, `HighRoll` for who goes first. |
 | 3 | `GameState.h`, `Screens.h`, `App.cpp` | Add a `Screen` value **at the end** of the enum (values are stored in flash — never renumber), declare the module and return it in `moduleFor()`. |
-| 4 | `ScreenHome.cpp` | Add the menu entry (the four entries fill the 240 px screen — a fifth needs `ITEM_H` / `ITEM_PITCH` re-spaced). |
+| 4 | `ScreenHome.cpp` | Add the menu entry (the five entries fill the 240 px screen — a sixth needs `ITEM_H` / `ITEM_PITCH` re-spaced). |
 | 5 | `AppStorage.cpp` | Add NVS keys for the new state in `loadState()` and `writeState()`. |
 
 More Commander counters (poison, energy, tax) belong in `CommanderGame` in `GameState.h` and,

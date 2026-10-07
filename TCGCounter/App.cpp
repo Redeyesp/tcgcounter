@@ -14,6 +14,8 @@ static const ScreenModule& moduleFor(Screen s) {
     case SCREEN_LORCANA:   return LorcanaScreen;
     case SCREEN_RIFTBOUND_SETUP: return RiftboundSetupScreen;
     case SCREEN_LORCANA_SETUP:   return LorcanaSetupScreen;
+    case SCREEN_POKEMON:         return PokemonScreen;
+    case SCREEN_POKEMON_SETUP:   return PokemonSetupScreen;
     case SCREEN_DICE:      return DiceScreen;
     case SCREEN_HOME:
     default:               return HomeScreen;

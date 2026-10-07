@@ -4,8 +4,9 @@
  *
  *  Commander (2-6 players, table layouts, commander damage with partners),
  *  Riftbound (1v1 / 4 players to 8, 2v2 to 11, +1 plus life) and Lorcana
- *  (2 or 4 players, 20 or 25 lore) counters, a High Roll (D20) in every
- *  game's menu and a
+ *  (2 or 4 players, 20 or 25 lore) counters, Pokemon (portrait: Active
+ *  damage, PSN / BRN, KO, bench of 5 with swap, coin flip), a High Roll
+ *  (D20) in every game's menu and a
  *  Dice page (D4..D20): the 🎲 button on every table, or DICE on Home.
  *
  *  All GPIO numbers live in Config.h. This file only wires the modules

@@ -33,3 +33,6 @@ extern const ScreenModule RiftboundSetupScreen;  // ScreenScoreSetup.cpp (contin
 extern const ScreenModule LorcanaSetupScreen;    // ScreenScoreSetup.cpp
 void scoreRequestHighRoll();  // ScreenScore.cpp: start a high roll when the table opens next
 extern const ScreenModule DiceScreen;       // ScreenDice.cpp (Home -> DICE)
+extern const ScreenModule PokemonScreen;       // ScreenPokemon.cpp (device standing)
+extern const ScreenModule PokemonSetupScreen;  // ScreenPokemonSetup.cpp (continue / coin / new game)
+void pokemonRequestCoinFlip();  // ScreenPokemon.cpp: flip a coin when the table opens next

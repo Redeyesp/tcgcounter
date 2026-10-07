@@ -19,6 +19,8 @@ enum Screen : uint8_t {
   SCREEN_LORCANA   = 5,        // v0.5+
   SCREEN_RIFTBOUND_SETUP = 6,  // Riftbound menu: continue / 1v1, 4-player, 2v2 (v0.9+)
   SCREEN_LORCANA_SETUP   = 7,  // Lorcana menu: continue / 2 or 4 players, 20 or 25 lore (v0.9+)
+  SCREEN_POKEMON         = 8,  // Pokemon table, device standing (portrait) (v0.11+)
+  SCREEN_POKEMON_SETUP   = 9,  // Pokemon menu: continue / coin flip / new game (v0.11+)
   SCREEN_COUNT
 };
 
@@ -80,6 +82,26 @@ struct ScoreGame {
   uint8_t selected;                   // 0..players-1 (encoder target)
 };
 
+// ---- Pokemon TCG: two players, each with an Active Pokemon and a bench of 5.
+// Damage in points (always a multiple of 10). PSN / BRN are on the Active only.
+constexpr uint8_t POKEMON_BENCH       = 5;
+constexpr int16_t POKEMON_DAMAGE_STEP = 10;
+constexpr int16_t POKEMON_DAMAGE_MAX  = 990;  // keeps numbers to 3 digits
+constexpr uint8_t POKEMON_PSN = 1;  // status bits
+constexpr uint8_t POKEMON_BRN = 2;
+constexpr int8_t  POKEMON_ACTIVE = -1;  // "slot" of the Active Pokemon (bench: 0..4)
+
+struct PokemonSide {
+  int16_t active;                 // damage on the Active Pokemon
+  uint8_t status;                 // POKEMON_PSN | POKEMON_BRN
+  int16_t bench[POKEMON_BENCH];   // damage on bench slots 1..5 (0 = no damage, or empty)
+};
+
+struct PokemonGame {
+  PokemonSide side[2];
+  uint8_t     selected;  // 0 / 1: the player the encoder counts for
+};
+
 /* FUTURE: add game data for new modes here (e.g. struct DiceState), add a
  * member to AppState below and extend AppStorage.cpp. */
 
@@ -88,6 +110,7 @@ struct AppState {
   CommanderGame commander;
   ScoreGame     riftbound;
   ScoreGame     lorcana;
+  PokemonGame   pokemon;
 };
 
 extern AppState g_state;  // the single live copy of all persistent state
@@ -97,6 +120,8 @@ void appStateSanitize(AppState& s);  // clamp anything loaded from flash
 
 bool operator==(const CommanderGame& a, const CommanderGame& b);
 bool operator==(const ScoreGame& a, const ScoreGame& b);
+bool operator==(const PokemonGame& a, const PokemonGame& b);
+inline bool operator!=(const PokemonGame& a, const PokemonGame& b) { return !(a == b); }
 bool operator==(const AppState& a, const AppState& b);
 inline bool operator!=(const CommanderGame& a, const CommanderGame& b) { return !(a == b); }
 inline bool operator!=(const ScoreGame& a, const ScoreGame& b) { return !(a == b); }
@@ -158,3 +183,17 @@ inline uint8_t scoreTotal(const ScoreGame& g, uint8_t player) {  // what the car
 inline bool scoreHasWon(const ScoreGame& g, uint8_t player) {
   return player < g.players && scoreTotal(g, player) >= g.target;
 }
+
+// ---- Pokemon rules ----
+// `slot`: POKEMON_ACTIVE or a bench slot 0..4. Anything out of range does nothing.
+void pokemonNewGame(PokemonGame& g);   // everything at 0, no status, P1 selected
+bool pokemonIsFresh(const PokemonGame& g);
+int16_t pokemonDamage(const PokemonGame& g, uint8_t side, int8_t slot);
+// delta in damage points; clamps 0..POKEMON_DAMAGE_MAX, stays a multiple of 10
+bool pokemonAdjust(PokemonGame& g, uint8_t side, int8_t slot, int delta);
+// Knocked out: that Pokemon's damage back to 0 (the Active also loses PSN / BRN).
+bool pokemonKnockOut(PokemonGame& g, uint8_t side, int8_t slot);
+// Bench slot `slot` becomes the Active, the Active goes to that slot with its
+// damage. PSN / BRN end when the Active goes to the bench.
+bool pokemonSwap(PokemonGame& g, uint8_t side, uint8_t slot);
+bool pokemonToggleStatus(PokemonGame& g, uint8_t side, uint8_t bit);

@@ -176,17 +176,101 @@ static void scoreSanitize(ScoreGame& g, uint8_t defaultTarget) {
   if (g.selected >= g.players) g.selected = 0;
 }
 
+// ---- Pokemon
+static int16_t clampDamage(int v) {
+  if (v < 0) v = 0;
+  if (v > POKEMON_DAMAGE_MAX) v = POKEMON_DAMAGE_MAX;
+  return (int16_t)(v - v % POKEMON_DAMAGE_STEP);
+}
+
+static int16_t* pokemonSlot(PokemonGame& g, uint8_t side, int8_t slot) {
+  if (side > 1) return nullptr;
+  if (slot == POKEMON_ACTIVE) return &g.side[side].active;
+  if (slot >= 0 && slot < (int8_t)POKEMON_BENCH) return &g.side[side].bench[slot];
+  return nullptr;
+}
+
+void pokemonNewGame(PokemonGame& g) {
+  for (PokemonSide& s : g.side) {
+    s.active = 0;
+    s.status = 0;
+    for (int16_t& b : s.bench) b = 0;
+  }
+  g.selected = 0;
+}
+
+bool pokemonIsFresh(const PokemonGame& g) {
+  for (const PokemonSide& s : g.side) {
+    if (s.active != 0 || s.status != 0) return false;
+    for (int16_t b : s.bench)
+      if (b != 0) return false;
+  }
+  return true;
+}
+
+int16_t pokemonDamage(const PokemonGame& g, uint8_t side, int8_t slot) {
+  if (side > 1) return 0;
+  if (slot == POKEMON_ACTIVE) return g.side[side].active;
+  if (slot >= 0 && slot < (int8_t)POKEMON_BENCH) return g.side[side].bench[slot];
+  return 0;
+}
+
+bool pokemonAdjust(PokemonGame& g, uint8_t side, int8_t slot, int delta) {
+  int16_t* d = pokemonSlot(g, side, slot);
+  if (!d || delta == 0) return false;
+  const int16_t after = clampDamage((int)*d + delta);
+  if (after == *d) return false;
+  *d = after;
+  return true;
+}
+
+bool pokemonKnockOut(PokemonGame& g, uint8_t side, int8_t slot) {
+  int16_t* d = pokemonSlot(g, side, slot);
+  if (!d) return false;
+  const bool changed = *d != 0 || (slot == POKEMON_ACTIVE && g.side[side].status != 0);
+  *d = 0;
+  if (slot == POKEMON_ACTIVE) g.side[side].status = 0;
+  return changed;
+}
+
+bool pokemonSwap(PokemonGame& g, uint8_t side, uint8_t slot) {
+  if (side > 1 || slot >= POKEMON_BENCH) return false;
+  PokemonSide& s = g.side[side];
+  const int16_t a = s.active;
+  s.active = s.bench[slot];
+  s.bench[slot] = a;
+  s.status = 0;
+  return true;
+}
+
+bool pokemonToggleStatus(PokemonGame& g, uint8_t side, uint8_t bit) {
+  if (side > 1 || (bit != POKEMON_PSN && bit != POKEMON_BRN)) return false;
+  g.side[side].status = (uint8_t)(g.side[side].status ^ bit);
+  return true;
+}
+
+static void pokemonSanitize(PokemonGame& g) {
+  for (PokemonSide& s : g.side) {
+    s.active = clampDamage(s.active);
+    s.status = (uint8_t)(s.status & (POKEMON_PSN | POKEMON_BRN));
+    for (int16_t& b : s.bench) b = clampDamage(b);
+  }
+  if (g.selected > 1) g.selected = 0;
+}
+
 void appStateSetDefaults(AppState& s) {
   s.screen = SCREEN_HOME;
   commanderNewGame(s.commander);
   scoreNewGame(s.riftbound, 2, RIFTBOUND_TARGET);
   scoreNewGame(s.lorcana, 2, LORCANA_TARGET);
+  pokemonNewGame(s.pokemon);
 }
 
 void appStateSanitize(AppState& s) {
   if (s.screen >= SCREEN_COUNT) s.screen = SCREEN_HOME;
   scoreSanitize(s.riftbound, RIFTBOUND_TARGET);
   scoreSanitize(s.lorcana, LORCANA_TARGET);
+  pokemonSanitize(s.pokemon);
   CommanderGame& c = s.commander;
   c.players = clampPlayers(c.players);
   c.layout = clampLayout(c.players, c.layout);
@@ -226,7 +310,18 @@ bool operator==(const ScoreGame& a, const ScoreGame& b) {
   return true;
 }
 
+bool operator==(const PokemonGame& a, const PokemonGame& b) {
+  if (a.selected != b.selected) return false;
+  for (uint8_t i = 0; i < 2; ++i) {
+    const PokemonSide &x = a.side[i], &y = b.side[i];
+    if (x.active != y.active || x.status != y.status) return false;
+    for (uint8_t k = 0; k < POKEMON_BENCH; ++k)
+      if (x.bench[k] != y.bench[k]) return false;
+  }
+  return true;
+}
+
 bool operator==(const AppState& a, const AppState& b) {
   return a.screen == b.screen && a.commander == b.commander &&
-         a.riftbound == b.riftbound && a.lorcana == b.lorcana;
+         a.riftbound == b.riftbound && a.lorcana == b.lorcana && a.pokemon == b.pokemon;
 }
