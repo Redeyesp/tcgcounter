@@ -280,10 +280,7 @@ bool digimonSetMemory(DigimonGame& g, uint8_t p, int value) {
   // whose side is it on now: the waiting player's -> their turn
   const int8_t waiting = (int8_t)(1 - g.turn);
   const int8_t forWaiting = waiting == 0 ? m : (int8_t)-m;
-  if (forWaiting >= 1) {
-    g.turn = (uint8_t)waiting;
-    if (g.lock) m = waiting == 0 ? (int8_t)g.lockAt : (int8_t)-g.lockAt;
-  }
+  if (forWaiting >= 1) g.turn = (uint8_t)waiting;
   g.memory = m;
   return g != before;
 }
@@ -295,24 +292,14 @@ bool digimonAdjust(DigimonGame& g, uint8_t p, int delta) {
 
 void digimonPass(DigimonGame& g) {
   const uint8_t next = (uint8_t)(1 - g.turn);
-  const int8_t m = (int8_t)(g.lock ? g.lockAt : DIGIMON_PASS_MEMORY);
+  const int8_t m = (int8_t)DIGIMON_PASS_MEMORY;
   g.memory = next == 0 ? m : (int8_t)-m;
   g.turn = next;
-}
-
-void digimonSetLock(DigimonGame& g, bool on) { g.lock = on; }
-
-void digimonSetLockAt(DigimonGame& g, int value) {
-  if (value < 1) value = 1;
-  if (value > DIGIMON_MEMORY_MAX) value = DIGIMON_MEMORY_MAX;
-  g.lockAt = (uint8_t)value;
 }
 
 static void digimonSanitize(DigimonGame& g) {
   g.memory = clampMemory(g.memory);
   if (g.turn > 1) g.turn = 0;
-  g.lock = g.lock ? true : false;
-  if (g.lockAt < 1 || g.lockAt > DIGIMON_MEMORY_MAX) g.lockAt = DIGIMON_DEFAULT_LOCK;
 }
 
 void appStateSetDefaults(AppState& s) {
@@ -321,8 +308,6 @@ void appStateSetDefaults(AppState& s) {
   scoreNewGame(s.riftbound, 2, RIFTBOUND_TARGET);
   scoreNewGame(s.lorcana, 2, LORCANA_TARGET);
   pokemonNewGame(s.pokemon);
-  s.digimon.lock = false;
-  s.digimon.lockAt = DIGIMON_DEFAULT_LOCK;
   digimonNewGame(s.digimon, 0);
 }
 
@@ -383,7 +368,7 @@ bool operator==(const PokemonGame& a, const PokemonGame& b) {
 }
 
 bool operator==(const DigimonGame& a, const DigimonGame& b) {
-  return a.memory == b.memory && a.turn == b.turn && a.lock == b.lock && a.lockAt == b.lockAt;
+  return a.memory == b.memory && a.turn == b.turn;
 }
 
 bool operator==(const AppState& a, const AppState& b) {

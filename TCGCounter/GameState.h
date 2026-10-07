@@ -21,8 +21,8 @@ enum Screen : uint8_t {
   SCREEN_LORCANA_SETUP   = 7,  // Lorcana menu: continue / 2 or 4 players, 20 or 25 lore (v0.9+)
   SCREEN_POKEMON         = 8,  // Pokemon table, device standing (portrait) (v0.11+)
   SCREEN_POKEMON_SETUP   = 9,  // Pokemon menu: continue / coin flip / new game (v0.11+)
-  SCREEN_DIGIMON         = 10, // Digimon memory gauge, device standing (portrait) (v0.12+)
-  SCREEN_DIGIMON_SETUP   = 11, // Digimon menu: continue / new game / memory lock value (v0.12+)
+  SCREEN_DIGIMON         = 10, // Digimon memory gauge, laid out like the gauge board (v0.12+)
+  SCREEN_DIGIMON_SETUP   = 11, // Digimon menu: continue / new game (who goes first) (v0.12+)
   SCREEN_COUNT
 };
 
@@ -107,17 +107,13 @@ struct PokemonGame {
 // ---- Digimon TCG: the shared memory gauge, 10 .. 0 .. 10.
 // `memory` > 0: on player 1's side (P1 has that much memory), < 0: on
 // player 2's side. The turn passes when the memory reaches 1 or more on the
-// other player's side. Memory lock: the new turn then always starts at
-// exactly `lockAt` memory (instead of wherever the counter landed).
-constexpr int8_t  DIGIMON_MEMORY_MAX   = 10;
-constexpr uint8_t DIGIMON_PASS_MEMORY  = 3;   // a pass gives the opponent 3 memory
-constexpr uint8_t DIGIMON_DEFAULT_LOCK = 3;
+// other player's side.
+constexpr int8_t  DIGIMON_MEMORY_MAX  = 10;
+constexpr uint8_t DIGIMON_PASS_MEMORY = 3;   // a pass gives the opponent 3 memory
 
 struct DigimonGame {
   int8_t  memory;  // -10..10, see above
   uint8_t turn;    // 0 / 1: whose turn it is
-  bool    lock;    // memory lock on
-  uint8_t lockAt;  // 1..10
 };
 
 /* FUTURE: add game data for new modes here (e.g. struct DiceState), add a
@@ -220,7 +216,7 @@ bool pokemonSwap(PokemonGame& g, uint8_t side, uint8_t slot);
 bool pokemonToggleStatus(PokemonGame& g, uint8_t side, uint8_t bit);
 
 // ---- Digimon rules ----
-// New game: memory 0, `first` player's turn. The lock setting is kept.
+// New game: memory 0, `first` player's turn.
 void digimonNewGame(DigimonGame& g, uint8_t first);
 bool digimonIsFresh(const DigimonGame& g);   // memory still 0
 // Memory as player p sees it: on their side > 0, on the opponent's side < 0.
@@ -228,12 +224,9 @@ inline int8_t digimonMemoryOf(const DigimonGame& g, uint8_t p) {
   return p == 0 ? g.memory : (int8_t)-g.memory;
 }
 // Put the counter at `value` (-10..10) as player p sees it. Reaching 1+ on
-// the side of the player who is waiting passes the turn to them (with the
-// lock on, their memory is then exactly lockAt). True if anything changed.
+// the side of the player who is waiting passes the turn to them.
+// True if anything changed.
 bool digimonSetMemory(DigimonGame& g, uint8_t p, int value);
 bool digimonAdjust(DigimonGame& g, uint8_t p, int delta);  // +delta for player p
-// The player whose turn it is passes: the opponent gets 3 memory (lockAt
-// with the lock on) and the turn.
+// The player whose turn it is passes: the opponent gets 3 memory and the turn.
 void digimonPass(DigimonGame& g);
-void digimonSetLock(DigimonGame& g, bool on);
-void digimonSetLockAt(DigimonGame& g, int value);  // clamps 1..10

@@ -21,8 +21,9 @@
  *                        pk   (27 bytes) Pokemon (v0.11+): for P1 then P2: Active damage
  *                             (i16, little endian), status bits, bench 1..5 damage (i16 each);
  *                             then the selected player. Missing -> a fresh game
- *                        dg   (4 bytes) Digimon (v0.12+): memory (i8, > 0 = player 1's
- *                             side), whose turn, memory lock on, lock value
+ *                        dg   (2 bytes) Digimon (v0.13+): memory (i8, > 0 = player 1's
+ *                             side), whose turn. v0.12 saved 4 bytes (+ memory lock):
+ *                             the first two are read
  *                        rb   Riftbound, lc Lorcana:
  *                             12 bytes from v0.9: players, teams, target,
  *                               score P1..P4, plus life P1..P4, selected
@@ -100,18 +101,18 @@ static void savePokemon(Preferences& p, const PokemonGame& g) {
   p.putBytes("pk", b, sizeof(b));
 }
 
-// DigimonGame <-> 4-byte blob
+// DigimonGame <-> 2-byte blob {memory, turn} (v0.12 saved 4: + memory lock, dropped)
 static void loadDigimon(Preferences& p, DigimonGame& g) {
-  if (!p.isKey("dg") || p.getBytesLength("dg") != 4) return;  // keep defaults
+  if (!p.isKey("dg")) return;  // keep defaults
+  const size_t len = p.getBytesLength("dg");
+  if (len != 2 && len != 4) return;
   uint8_t b[4];
-  p.getBytes("dg", b, sizeof(b));
+  p.getBytes("dg", b, len);
   g.memory = (int8_t)b[0];
   g.turn = b[1];
-  g.lock = b[2] != 0;
-  g.lockAt = b[3];
 }
 static void saveDigimon(Preferences& p, const DigimonGame& g) {
-  const uint8_t b[4] = {(uint8_t)g.memory, g.turn, (uint8_t)(g.lock ? 1 : 0), g.lockAt};
+  const uint8_t b[2] = {(uint8_t)g.memory, g.turn};
   p.putBytes("dg", b, sizeof(b));
 }
 

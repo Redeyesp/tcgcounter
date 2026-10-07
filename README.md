@@ -12,10 +12,11 @@ A tabletop counter with five games on the home menu:
 * **LORCANA** — 2 or 4 players, first to **20** or **25** lore;
 * **POKEMON** — the device stands up, one half per player: the Active Pokémon's damage in
   tens with **PSN** / **BRN** and **KO**, a bench of 5 with **SWAP**, and a coin flip;
-* **DIGIMON** — the device stands up: the shared memory gauge (0 in the middle, each
-  player's 1–10 on their half), whose turn it is, **PASS** and a **memory lock**;
+* **DIGIMON** — the memory gauge laid out like the gauge board players know
+  (5 4 3 2 1 **0** 1 2 3 4 5 across the middle, each player's 6–10 folded back on their
+  own side), whose turn it is and **PASS**;
 
-plus **High Roll** in every game's **≡** menu to decide who goes first (Pokémon: coin flip; Digimon: pick in NEW GAME), and a **Dice** page
+plus **High Roll** in every game's **≡** menu to decide who goes first (Pokémon: coin flip; Digimon: pick BOTTOM or TOP in its menu), and a **Dice** page
 (D4 / D6 / D8 / D12 / D20) behind the round **🎲** button on the game tables and as **DICE**
 on the home menu, with touch and encoder working at the same time, and every game saved to
 flash so it survives power-off.
@@ -28,10 +29,10 @@ the screens are rendered off-screen from the real drawing code to check the layo
 the USB-C (ST7789) board.
 
 ![UI preview](docs/ui_preview.png)
-*Rendered from the actual screen code at 2× scale, shown the way the device stands for
-Pokémon and Digimon (portrait, player 1 at the top). Left: Pokémon (P1 poisoned, P2 poisoned
-and burned). Then Digimon: player 2's turn with 4 memory and the memory lock on at 3, the
-Digimon menu (lock value), and NEW GAME asking who goes first.*
+*Rendered from the actual screen code at 2× scale. Digimon, laid out like the memory gauge
+board (the device lies between the players; the bottom player's numbers face them, the top
+player's are upside down here because they face the other way). Left: the bottom player's
+turn with 7 memory. Middle: the top player's turn with 4. Right: the Digimon menu.*
 
 ---
 
@@ -71,7 +72,8 @@ Using it:
 | High roll result | Tap anywhere = back to the game (that tap changes nothing) · **≡ → HIGH ROLL** = roll again | Any turn or press = back to the game |
 | Riftbound / Lorcana menu | **CONTINUE** = back to the running game · **HIGH ROLL** · new game: Riftbound **1v1** / **4P** / **2v2**, Lorcana **2P** / **4P** to **20** / **25** (asks first) · **< HOME** | Turn = move yellow focus · Press = choose |
 | Riftbound / Lorcana | Tap/hold **−**/**+** = score (hold repeats) · Tap a card = select · **+1** (Riftbound) = plus life on / off · Round **≡** = the game's menu · **🎲** = Dice page · **↻** = Restart (asks first) | Turn = selected player's score · Press = next player · Long-press = Restart (asks first) |
-| Digimon (device standing) | Tap a memory slot **1–10** = put the counter there (on that player's side; 1+ on the waiting player's side passes the turn) · **PASS** (whose turn it is) = opponent gets 3 · round **0** = memory 0 · round **lock** = memory lock on/off (gold = on) · **≡** = Digimon menu (CONTINUE / NEW GAME: who goes first / MEMORY LOCK AT − n + / HOME) | Turn = memory ±1 for the player whose turn it is (counter-clockwise = spend) · Press = memory lock on/off · Long-press = PASS |
+| Digimon | Tap a circle on the gauge = put the counter there (**0** in the middle = memory 0; 1+ on the waiting player's side passes the turn) · **PASS** (whose turn it is) = opponent gets 3 · either round **≡** = Digimon menu | Turn = memory ±1 for the player whose turn it is (counter-clockwise = spend) · Long-press = PASS |
+| Digimon menu | **CONTINUE** · new game: **BOTTOM** / **TOP** goes first (asks first) · **< HOME** | Turn = move yellow focus · Press = choose |
 | Pokémon (device standing) | Tap/hold **−**/**+** = damage ±10 on what is open (hold repeats) · **PSN** / **BRN** = poisoned / burned on/off · **KO** = back to 0 · tap a bench slot **1–5** = open it (−/+, KO, **⇅ SWAP**, **<** back) · round **coin** = coin flip on both halves · **≡** = Pokémon menu (CONTINUE / COIN FLIP / NEW GAME / HOME) | Turn = ±10 on what the selected player has open · Press = other player · Long-press = back to the Active · Coin page: press = flip again, long-press = back |
 
 **Players and seating (2–6).** Home → **COMMANDER** opens the Commander menu. **CONTINUE**
@@ -185,21 +187,21 @@ end, as they do when the Active goes to the bench. **KO** puts that Pokémon's d
 player (**FLIP** again, **BACK**); the result comes from the ESP32's random generator.
 Pokémon has no dice button. Prize cards are left to the players.
 
-**Digimon.** Home → **DIGIMON** opens its menu: **CONTINUE**, **NEW GAME** (asks who goes
-first: **TOP PLAYER** / **BOTTOM PLAYER**; memory back to 0), **MEMORY LOCK AT − n +** and
-**HOME**. Stand the device up between the players, like Pokémon. The memory gauge runs
-through the device: **0** is the round button in the middle, and each player's side of the
-gauge, **1–10**, is on their own half (1 nearest the middle, 10 nearest the player). The lit
-slot is the counter; the slots it has passed are tinted. Each half also shows **MEMORY n**
-as that player sees it (negative = the counter is on the opponent's side), and **YOUR
-TURN** with a **PASS** button, or **WAITING**. Tap a slot to move the counter there. When
-it lands on **1 or more on the waiting player's side**, the turn passes to them (the
-official rule) and the halves swap YOUR TURN / WAITING. **PASS** gives the opponent 3
-memory and the turn. **Memory lock** (the round lock button, gold when on): whenever the
-turn changes, the new turn starts with exactly the lock value (default **3**, set in the
-menu) instead of wherever the counter landed — 1, 2, 5 … all become 3; PASS gives the lock
-value too. On your own side the lock changes nothing. Mis-tapped across the middle with the
-lock on? Tap the right slot twice (the first tap passes the turn back at the lock value).
+**Digimon.** Home → **DIGIMON** opens its menu: **CONTINUE**, a new game where the
+**BOTTOM** or the **TOP** player goes first (memory back to 0; asks first if a game is
+running), and **< HOME**. Lay the device flat between the two players, like the memory gauge
+board: the bottom player's numbers face them, the top player's face the other way. The
+middle row reads **5 4 3 2 1 0 1 2 3 4 5** — the bottom player's 1–5 on the left, the top
+player's on the right — and each player's **6–10** folds back on their own side (bottom
+player: under their 5…1, 6 at the edge; top player: above theirs), so the counter runs
+… 4, 5, then 6 at the edge, 7, 8, 9, 10 back toward the middle. Circles are ringed in the
+player's colour (red bottom, blue top); the gold circle is the counter and the circles it
+has passed on that side are tinted. Each player also has **MEMORY n** as they see it
+(negative = the counter is on the opponent's side) and, along their edge, **YOUR TURN** with
+a **PASS** button, or **WAITING**. Tap a circle to move the counter there. When it lands on
+**1 or more on the waiting player's side**, the turn passes to them (the official rule).
+**PASS** gives the opponent 3 memory and the turn. The two round **≡** buttons (one in each
+player's free corner) open the menu.
 
 **High Roll (who goes first).** Open the game's **≡** menu and choose **HIGH ROLL** (top right
 of the game's menu). Every player's card turns into a
@@ -310,8 +312,8 @@ tcgcounter/
     ├── ScreenDice.cpp        Home -> DICE: the Dice page on its own
     ├── ScreenPokemon.cpp     Pokemon table (portrait): Active, PSN/BRN, KO, bench, swap, coin flip
     ├── ScreenPokemonSetup.cpp  Pokemon menu (portrait): continue / coin flip / new game
-    ├── ScreenDigimon.cpp     Digimon memory gauge (portrait): turn, PASS, memory lock
-    ├── ScreenDigimonSetup.cpp  Digimon menu (portrait): continue / who goes first / lock value
+    ├── ScreenDigimon.cpp     Digimon memory gauge laid out like the board: turn, PASS
+    ├── ScreenDigimonSetup.cpp  Digimon menu: continue / new game (who goes first)
     ├── HighRoll.h/.cpp       high roll logic: D20 per player, tie-breaks (no drawing)
     ├── TableDraw.h/.cpp      cards that face their player (off-screen, rotated), round buttons, dice shapes
     ├── UiConfirm.h/.cpp      full-screen CANCEL / OK question (new game, restart)
@@ -364,7 +366,7 @@ Key design rules:
 | `tcg` | `cd` | commander damage, 6×6 bytes `[victim][source]` (v0.2–v0.3 saved 4×4: converted on load, the game is kept; missing in v0.1 saves → all 0) |
 | `tcg` | `cd2`, `pt` | Partner: the partners' commander damage (6×6 bytes) and which players have one (bit mask) (v0.10+; missing → none) |
 | `tcg` | `pk` | Pokémon, 27 bytes (v0.11+): per player the Active's damage, PSN/BRN bits and bench 1–5 damage, then the selected player (missing → a fresh game) |
-| `tcg` | `dg` | Digimon, 4 bytes (v0.12+): memory (−10..10, > 0 = player 1's side), whose turn, memory lock on, lock value (missing → memory 0, lock off at 3) |
+| `tcg` | `dg` | Digimon, 2 bytes (v0.13+): memory (−10..10, > 0 = the bottom player's side), whose turn (missing → memory 0; a 4-byte v0.12 save keeps memory and turn, its memory lock is dropped) |
 | `tcgtouch` | `cal`, `calv` | touch calibration (separate, so a future game reset can't erase it) |
 
 ---
