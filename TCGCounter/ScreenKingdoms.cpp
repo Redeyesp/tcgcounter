@@ -157,41 +157,6 @@ void text(int x, int y, const char* t, const lgfx::IFont* f, uint16_t col,
   g.drawString(t, x, y);
 }
 
-// Word-wraps `t` into lines of at most `w` px from (x, y) (top-left), `lh` apart.
-void wrapped(int x, int y, int w, int lh, const char* t, const lgfx::IFont* f, uint16_t col) {
-  auto& g = gfx();
-  g.setFont(f);
-  g.setTextDatum(lgfx::textdatum_t::top_left);
-  g.setTextColor(col);
-  char line[64] = "";
-  size_t len = 0;
-  const char* p = t;
-  while (*p) {
-    while (*p == ' ') ++p;
-    const char* e = p;
-    while (*e && *e != ' ') ++e;
-    size_t wl = (size_t)(e - p);
-    if (wl > 40) wl = 40;  // no word is this long; keeps the buffers safe
-    char cand[64];
-    size_t cl = 0;
-    if (len) { memcpy(cand, line, len); cand[len] = ' '; cl = len + 1; }
-    memcpy(cand + cl, p, wl);
-    cand[cl + wl] = 0;
-    if (len && (cl + wl > 60 || g.textWidth(cand) > w)) {  // this word goes on the next line
-      g.drawString(line, x, y);
-      y += lh;
-      memcpy(line, p, wl);
-      line[wl] = 0;
-      len = wl;
-    } else if (wl) {
-      memcpy(line, cand, cl + wl + 1);
-      len = cl + wl;
-    }
-    p = e;
-  }
-  if (len) g.drawString(line, x, y);
-}
-
 void button(const Rect& r, const char* label, bool pressed, bool focus, uint16_t fill = theme::BUTTON) {
   auto& g = gfx();
   g.fillRect(r.x, r.y, r.w, r.h, theme::BG);
@@ -274,7 +239,7 @@ void drawRevealPage() {
   g.setFont(theme::fontTitle());
   const lgfx::IFont* nameFont = g.textWidth(name) <= TEXT_W ? theme::fontTitle() : theme::fontButton();
   text(TEXT_X, 48, name, nameFont, kingdomsRoleColor(role), lgfx::textdatum_t::middle_left);
-  wrapped(TEXT_X, 72, TEXT_W, 17, kingdomsRoleGoal(role), theme::fontSmall(), theme::TEXT);
+  uiWrappedText(g, TEXT_X, 72, TEXT_W, 17, kingdomsRoleGoal(role), theme::fontSmall(), theme::TEXT);
   button(REVEAL_BTN, s_peek ? "DONE" : "NEXT", s_pressed == 0, true);
 }
 

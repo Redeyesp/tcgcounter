@@ -1,5 +1,6 @@
 #include "Ui.h"
 #include <math.h>
+#include <string.h>
 
 void uiRoundFrame(lgfx::LovyanGFX& g, int x, int y, int w, int h, int r, int t, uint16_t color) {
   // Straight edges
@@ -60,4 +61,41 @@ void uiChevron(lgfx::LovyanGFX& g, int cx, int cy, int size, int thick, bool poi
   uiThickLine(g, backX, cy - h, tipX, cy, thick, color);
   uiThickLine(g, tipX, cy, backX, cy + h, thick, color);
   g.fillCircle(tipX, cy, thick / 2, color);  // round the joint
+}
+
+int uiWrappedText(lgfx::LovyanGFX& g, int x, int y, int w, int lh, const char* t, const lgfx::IFont* f,
+                  uint16_t col) {
+  int lines = 0;
+  g.setFont(f);
+  g.setTextDatum(lgfx::textdatum_t::top_left);
+  g.setTextColor(col);
+  char line[64] = "";
+  size_t len = 0;
+  const char* p = t;
+  while (*p) {
+    while (*p == ' ') ++p;
+    const char* e = p;
+    while (*e && *e != ' ') ++e;
+    size_t wl = (size_t)(e - p);
+    if (wl > 40) wl = 40;  // no word is this long; keeps the buffers safe
+    char cand[64];
+    size_t cl = 0;
+    if (len) { memcpy(cand, line, len); cand[len] = ' '; cl = len + 1; }
+    memcpy(cand + cl, p, wl);
+    cand[cl + wl] = 0;
+    if (len && (cl + wl > 60 || g.textWidth(cand) > w)) {  // this word goes on the next line
+      g.drawString(line, x, y);
+      y += lh;
+      ++lines;
+      memcpy(line, p, wl);
+      line[wl] = 0;
+      len = wl;
+    } else if (wl) {
+      memcpy(line, cand, cl + wl + 1);
+      len = cl + wl;
+    }
+    p = e;
+  }
+  if (len) { g.drawString(line, x, y); ++lines; }
+  return lines;
 }

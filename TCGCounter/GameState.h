@@ -27,6 +27,7 @@ enum Screen : uint8_t {
   SCREEN_STANDARD_SETUP  = 13, // Standard menu: continue / high roll / new game (v0.14+)
   SCREEN_KINGDOMS        = 14, // Kingdoms: dealing hidden roles, checking yours (v0.15+)
   SCREEN_KINGDOMS_SETUP  = 15, // Kingdoms menu: continue / check my role / deal for 4, 5, 6 (v0.15+)
+  SCREEN_UPDATE          = 16, // firmware update over Wi-Fi (Home -> version button) (v0.16+)
   SCREEN_COUNT
 };
 

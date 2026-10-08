@@ -69,6 +69,21 @@
   </section>
 
   <section class="card">
+    <h2>Update over Wi-Fi (no cable, no BOOT button)</h2>
+    <p>From v0.16 the board updates itself over Wi-Fi — a phone is enough:</p>
+    <ol>
+      <li>Download the app file for your board (on the phone or computer you will upload from):
+          <a href="firmware/app-st7789.bin" download="st7789-app.bin">st7789-app.bin</a> ·
+          <a href="firmware/app-ili9341.bin" download="ili9341-app.bin">ili9341-app.bin</a></li>
+      <li>On the board: Home → tap the version button (top right) → <b>START WI-FI</b>.</li>
+      <li>Join its Wi-Fi (scan the QR code on the screen), open <code>http://192.168.4.1</code>,
+          choose the file and press <b>Upload</b>. It restarts into the new version by itself;
+          saved games are kept.</li>
+    </ol>
+    <p>If the page does not open on a phone, turn mobile data off for a moment.</p>
+  </section>
+
+  <section class="card">
     <h2>Which one?</h2>
     <ul>
       <li>A <b>mirrored or sideways</b> picture with <b>swapped colours</b> means the other variant.</li>
@@ -98,7 +113,7 @@
   </section>
 
   <section class="card">
-    <img src="ui_preview.png" alt="Home, Commander and Coming Soon screens" onerror="this.parentElement.remove()">
+    <img src="ui_preview.png" alt="Screens rendered from the firmware" onerror="this.parentElement.remove()">
   </section>
 
   <footer>

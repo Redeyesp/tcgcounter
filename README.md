@@ -24,20 +24,23 @@ A tabletop counter with seven games on the home menu (buttons in two columns):
 
 plus **High Roll** in every game's **≡** menu to decide who goes first (Pokémon: coin flip; Digimon: pick BOTTOM or TOP in its menu), and a **Dice** page
 (D4 / D6 / D8 / D12 / D20) behind the round **🎲** button on the game tables and as **DICE**
-on the home menu, with touch and encoder working at the same time, and every game saved to
-flash so it survives power-off.
+on the home menu, with touch and encoder working at the same time, every game saved to
+flash so it survives power-off, and **firmware updates over Wi-Fi** from the screen — after
+the first install the BOOT button is never needed again.
 
 **Build status:** compiles with zero warnings in the project code on Arduino-ESP32 core
 **2.0.17** (what PlatformIO uses; tested with LovyanGFX 1.2.0 and 1.2.32) and **3.3.12**
 (what the Arduino IDE installs today; tested with LovyanGFX 1.2.32). Game rules, saving,
 the encoder decoder and the touch mapping of every table layout are unit-tested on a PC;
-the screens are rendered off-screen from the real drawing code to check the layout. Runs on
-the USB-C (ST7789) board.
+the screens are rendered off-screen from the real drawing code to check the layout; the
+Wi-Fi upload page is tested in a headless browser. Runs on the USB-C (ST7789) board. With
+the Wi-Fi updater the app takes about 1.0 MB (core 2.0.17) / 1.15 MB (core 3.3.12) of its
+1.25 MB slot.
 
 ![UI preview](docs/ui_preview.png)
-*Rendered from the actual screen code at 2× scale. Kingdoms: the second of five players picks
-a face-down card (the first one took the middle card), a role page (here the King), the
-close-your-eyes page between players, and the home menu with KINGDOMS next to DICE.*
+*Rendered from the actual screen code at 2× scale. Firmware update over Wi-Fi: the version
+button on the home menu (top right), the update page, the hotspot page with its QR code (a
+phone has joined) and an upload halfway through.*
 
 ---
 
@@ -69,7 +72,8 @@ Using it:
 
 | Where | Touch | Encoder |
 |---|---|---|
-| Home | Tap a button to open it (**COMMANDER**, **STANDARD**, **RIFTBOUND**, **LORCANA**, **POKEMON**, **DIGIMON**, **KINGDOMS**, **DICE**) | Turn = move yellow focus (left to right, then down) · Press = open |
+| Home | Tap a button to open it (**COMMANDER**, **STANDARD**, **RIFTBOUND**, **LORCANA**, **POKEMON**, **DIGIMON**, **KINGDOMS**, **DICE**) · the **version** button (top right) = firmware update over Wi-Fi | Turn = move yellow focus (left to right, then down, then the version button) · Press = open |
+| Firmware update | **START WI-FI** = hotspot on (QR code, password, address) · **CANCEL** = hotspot off · failed: **TRY AGAIN** / **HOME** · **< HOME** | Turn = pick a button · Press = choose (while waiting: CANCEL) |
 | Commander menu | **CONTINUE** = back to the running game · **TABLE** = another layout for the running game (nothing is reset) · **HIGH ROLL** = back to the table and roll for who goes first · **2 3 4 5 6** = new game with that many players (3, 5 and 6 first show the table picker; asks before wiping a game) · **< HOME** = home menu | Turn = move yellow focus · Press = choose · Long-press in the picker = back |
 | Commander | Tap a card = select player · Tap/hold **−**/**+** = life (hold repeats) · **Swipe sideways on a card's number** = commander damage mode for that player · Tap centre **≡** = Commander menu · Tap **🎲** = Dice page | Turn = selected player's life ±1 per click · Press = next player (P1→P2→…→P1) · **Long-press** = commander damage mode for the selected player |
 | Commander damage mode | −/+ on an **opponent's** card = damage that opponent dealt to the victim · −/+ on the victim's card = life · small **+** on an opponent's card = that player has a **Partner** (then tap the left / right number to pick which commander −/+ count for; **×** takes the partner away while it has dealt no damage) · Tap centre **✕**, or swipe the victim's card again = close · Swipe another card = switch player | Turn = damage from the focused opponent (commander) · Press = next opponent, or its partner · Long-press = close |
@@ -367,6 +371,8 @@ tcgcounter/
     ├── ScreenKingdomsSetup.cpp Kingdoms menu: continue deal / check my role / deal for 4-6
     ├── ScreenKingdoms.cpp    Kingdoms: face-down cards, role reveal, close-your-eyes, to Commander
     ├── KingdomsArt.h/.cpp    Kingdoms role names, goals, colours and artwork (drawn from shapes)
+    ├── ScreenUpdate.cpp      Home -> version button: firmware update over Wi-Fi (QR code, progress)
+    ├── OtaServer.h/.cpp      the Wi-Fi hotspot, the upload page and writing the new firmware
     ├── HighRoll.h/.cpp       high roll logic: D20 per player, tie-breaks (no drawing)
     ├── TableDraw.h/.cpp      cards that face their player (off-screen, rotated), round buttons, dice shapes
     ├── UiConfirm.h/.cpp      full-screen CANCEL / OK question (new game, restart)
@@ -535,6 +541,30 @@ Tuning after the first test:
 The CYD has a CH340 USB-serial chip. Use a **data** USB cable (many cables are charge-only).
 If no serial port appears, install the CH340 driver (Windows/macOS; Linux has it built in).
 
+### Update over Wi-Fi — no cable, no BOOT button (v0.16+)
+
+Once a v0.16 or newer firmware is on the board (installed once with Option A, B or C below),
+updates go over Wi-Fi from the screen; a phone is enough:
+
+1. Get the new app file first, while you still have internet: on the web flasher page
+   (Option A) tap **st7789-app.bin** (or **ili9341-app.bin** for the original board) under
+   *Update over Wi-Fi*, or take it from a build's **TCGCounter-firmware** artifact.
+2. On the board: Home → tap the **version** button (top right) → **START WI-FI**. The screen
+   shows a QR code, the Wi-Fi name (`TCG-Counter-XXXX`), a fresh 8-digit password and the
+   address `192.168.4.1`.
+3. Point the phone camera at the QR code to join (or type the password), then open
+   **http://192.168.4.1** in the browser. If the page does not open, turn mobile data off for
+   a moment.
+4. Choose the file and press **Upload**. The screen shows the progress; the board checks
+   the file, switches to it and restarts into the new version (the version button on Home
+   shows it). Saved games and the touch calibration are kept.
+
+Safe by design: the new firmware is written to the spare app slot and only switched to when
+it arrived complete and valid — a dropped connection or a wrong file (the page refuses the
+fresh-install, bootloader and partition files and warns about the other board variant)
+leaves the running firmware as it was. Wi-Fi is on only while that page is open. The BOOT
+button is only needed again if a broken firmware ever stops the screen from starting.
+
 ### Option A — Git: push, CI builds, flash from the browser (normal workflow)
 
 `.github/workflows/build.yml` does the building; nothing needs installing on the PC.
@@ -667,4 +697,6 @@ mode. Screens can also implement the optional `tick()` hook in `ScreenModule` fo
 | No serial output | Monitor at 115200; `DEBUG_LOG 1` in `Config.h` |
 | Build error mentioning `Config.h` | The encoder pin check — read the message, change the pin |
 | Want a fresh game | Centre ≡ → pick the number of players → START |
+| Wi-Fi update: the page at 192.168.4.1 does not open | The phone left the hotspot (no internet) or sends traffic over mobile data — turn mobile data off, rejoin `TCG-Counter-XXXX` |
+| Wi-Fi update: "Wrong Magic Byte" / "Bad Size Given" | Not the app file — upload `st7789-app.bin` / `ili9341-app.bin`, not the fresh-install, bootloader or partitions file |
 | Head-of-table swipe doesn't open commander damage | Swipe along the long side of that card (up/down on the screen) |

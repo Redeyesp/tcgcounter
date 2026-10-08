@@ -14,6 +14,7 @@ static const ScreenModule& moduleFor(Screen s) {
     case SCREEN_STANDARD_SETUP:  return StandardSetupScreen;
     case SCREEN_KINGDOMS:        return KingdomsScreen;
     case SCREEN_KINGDOMS_SETUP:  return KingdomsSetupScreen;
+    case SCREEN_UPDATE:          return UpdateScreen;
     case SCREEN_RIFTBOUND: return RiftboundScreen;
     case SCREEN_LORCANA:   return LorcanaScreen;
     case SCREEN_RIFTBOUND_SETUP: return RiftboundSetupScreen;

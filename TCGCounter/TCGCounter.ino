@@ -9,7 +9,8 @@
  *  gauge laid out like the board, turn, PASS), Kingdoms (hidden roles for
  *  4-6 players, dealt one player at a time), a High Roll (D20) in every
  *  game's menu and a Dice page (D4..D20): the 🎲 button on every table, or
- *  DICE on Home.
+ *  DICE on Home. Firmware updates over Wi-Fi from the screen (Home ->
+ *  version button), so the BOOT button is not needed after the first install.
  *
  *  All GPIO numbers live in Config.h. This file only wires the modules
  *  together; each module is described at the top of its own header.

@@ -27,5 +27,9 @@ void uiMinus(lgfx::LovyanGFX& c, int cx, int cy, int len, int thick, uint16_t co
 void uiPlus(lgfx::LovyanGFX& c, int cx, int cy, int len, int thick, uint16_t color);
 void uiHomeIcon(lgfx::LovyanGFX& c, int cx, int cy, uint16_t color, uint16_t cutoutColor);
 void uiChevron(lgfx::LovyanGFX& c, int cx, int cy, int size, int thick, bool pointRight, uint16_t color);
+// Word-wraps `text` into lines at most `w` px wide, top-left at (x, y), `lh` px
+// apart. Returns the number of lines drawn.
+int uiWrappedText(lgfx::LovyanGFX& c, int x, int y, int w, int lh, const char* text, const lgfx::IFont* font,
+                  uint16_t color);
 // Straight line of any thickness (filled quad, no anti-aliasing).
 void uiThickLine(lgfx::LovyanGFX& c, int x0, int y0, int x1, int y1, int thick, uint16_t color);

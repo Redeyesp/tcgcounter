@@ -42,3 +42,4 @@ extern const ScreenModule DigimonScreen;       // ScreenDigimon.cpp (memory gaug
 extern const ScreenModule DigimonSetupScreen;  // ScreenDigimonSetup.cpp (continue / new game)
 extern const ScreenModule KingdomsScreen;       // ScreenKingdoms.cpp (deal hidden roles / check yours)
 extern const ScreenModule KingdomsSetupScreen;  // ScreenKingdomsSetup.cpp (continue / check my role / deal 4-6)
+extern const ScreenModule UpdateScreen;         // ScreenUpdate.cpp (firmware update over Wi-Fi, OtaServer.h)
