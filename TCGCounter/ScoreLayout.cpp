@@ -112,7 +112,7 @@ ScoreHit scoreHitTest(uint8_t players, bool bonus, int x, int y) {
   int lx, ly;
   seatToLocal(s, x, y, lx, ly);
   const uint8_t i = (uint8_t)p;
-  if (g.bonusZone.w > 0 && g.bonusZone.contains(lx, ly)) return {ScoreZone::Bonus, i};
-  // the rest of the card is two invisible halves (TapHalves.h): left −, right +
+  // the whole card is two invisible halves (TapHalves.h): left −, right +.
+  // (The +1 plus life is given in the Riftbound menu, never on the table.)
   return {lx < g.w / 2 ? ScoreZone::Minus : ScoreZone::Plus, i};
 }

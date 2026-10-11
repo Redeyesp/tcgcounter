@@ -17,7 +17,8 @@
  *   │          PLAYER 2            │      │  [−] [+]    🎲   [−] [+]  │
  *   └──────────────────────────────┘      └─────────────┴─────────────┘
  *
- *   (+1) = Riftbound "plus life" button (bonus = true). Lorcana has none.
+ *   (+1) = Riftbound "plus life" badge (bonus = true), shown once taken; it
+ *   is given in the Riftbound menu (v0.18). Lorcana has none.
  *   Since v0.17 the − / + are faint marks, not buttons: the card's left half
  *   counts −1 and its right half +1 (TapHalves.h).
  *
@@ -39,17 +40,17 @@ struct ScoreGeom {
   int16_t w, h;
   bool    wide;                // 2-card table: − / + are tall buttons at the card's sides
   Rect    minus, plus;         // − / + buttons
-  Rect    bonus;               // +1 button (w = 0: none)
+  Rect    bonus;               // where the +1 badge shows once taken (w = 0: no room kept)
   Rect    label;               // compact: name pill at the top
   int16_t numCx, numCy;        // centre of "5 /8"
   int16_t numMaxW, numMaxH;    // room for it
   int16_t capX, capY;          // wide: centre of the name / WINNER! caption under the score
   int16_t dieCx, dieCy, dieR;  // high roll: the D20 in place of the score
   // touch zones (local coordinates): the card's left half = −, right half = +
-  // (TapHalves.h), except the +1 button
+  // (TapHalves.h)
   int16_t minusEnd, plusStart; // wide: where the old − / + buttons ended (layout of the score)
   int16_t zoneY;               // compact: the row the old − / + buttons started at
-  Rect    bonusZone;           // touches here = +1 (w = 0: none)
+  Rect    bonusZone;           // unused since v0.18 (the +1 moved to the Riftbound menu)
 };
 ScoreGeom scoreGeom(int16_t w, int16_t h, bool bonus);
 inline ScoreGeom scoreGeom(const Seat& s, bool bonus) {
@@ -65,7 +66,7 @@ struct ScoreHit {
 };
 constexpr ScoreHit SCORE_NO_HIT = {ScoreZone::None, 0};
 
-// What a touch at screen (x, y) lands on, with `players` cards and the +1
-// buttons shown (`bonus`) or not: a hub, the +1 button, or a card's left
-// (Minus) / right (Plus) half.
+// What a touch at screen (x, y) lands on, with `players` cards (`bonus`:
+// room kept for the +1 badge): a hub, or a card's left (Minus) / right
+// (Plus) half. ScoreZone::Bonus is no longer returned.
 ScoreHit scoreHitTest(uint8_t players, bool bonus, int x, int y);

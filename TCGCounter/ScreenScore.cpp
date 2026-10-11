@@ -19,9 +19,10 @@
  *  Touch:   tap a card's left half = −1, right half = +1 (faint − / + marks,
  *           red / green flash, counts when the finger lifts, holding repeats;
  *           TapHalves.h) · the tap also selects the card
- *           +1 (Riftbound) = plus life on / off: one extra point, at most
- *               one per player (team), so a score can end one past the
- *               target (9 /8)
+ *           +1 (Riftbound) = plus life: one extra point, at most one per
+ *               player (team), so a score can end one past the target
+ *               (9 /8). Given in the Riftbound menu (≡ -> +1 PLUS LIFE);
+ *               the card shows a gold +1 once taken
  *           ≡ = the game's menu: CONTINUE · HIGH ROLL · new game · HOME
  *           🎲 = Dice page: D4 / D6 / D8 / D12 / D20, REROLL, BACK to the game
  *           ↻ = Restart (asks first; everyone back to 0)
@@ -83,13 +84,12 @@ struct CardView {
   bool      bonus;      // plus life taken
   bool      won;
   bool      highlight;
-  ScoreZone pressed;    // Bonus / None (the +1 button held)
   int8_t    flash;      // half lit red (-1) / green (+1), 0 none
   DieState  die;        // high roll running: how this player's D20 looks
   uint8_t   face;
   bool operator==(const CardView& o) const {
     return total == o.total && bonus == o.bonus && won == o.won && highlight == o.highlight &&
-           pressed == o.pressed && flash == o.flash && die == o.die && face == o.face;
+           flash == o.flash && die == o.die && face == o.face;
   }
   bool operator!=(const CardView& o) const { return !(*this == o); }
 };
@@ -105,11 +105,10 @@ CardView viewOf(uint8_t p) {
   v.bonus = g.bonus[p] != 0;
   v.won = scoreHasWon(g, p);
   v.highlight = (g.selected == p);
-  v.pressed = (s_press.zone == ScoreZone::Bonus && s_press.index == p) ? ScoreZone::Bonus : ScoreZone::None;
   v.flash = s_tap.shown((int8_t)p, millis());
   v.die = highRollDie(s_roll, p);
   v.face = v.die != DieState::None ? s_roll.value[p] : 0;
-  if (v.die != DieState::None) { v.pressed = ScoreZone::None; v.flash = 0; }
+  if (v.die != DieState::None) v.flash = 0;
   return v;
 }
 
@@ -154,19 +153,16 @@ void drawHints(lgfx::LovyanGFX& c, int ox, int oy, const ScoreGeom& g, int8_t li
                big ? 5 : 4, lit);
 }
 
-// +1 plus life: gold once taken.
+// +1 plus life: a gold badge once taken (given in the Riftbound menu, not here).
 void drawBonus(lgfx::LovyanGFX& c, int ox, int oy, const ScoreGeom& g, const CardView& v) {
+  if (!v.bonus) return;
   const Rect b = {(int16_t)(ox + g.bonus.x), (int16_t)(oy + g.bonus.y), g.bonus.w, g.bonus.h};
-  const bool pressed = v.pressed == ScoreZone::Bonus;
-  uint16_t fill = theme::BUTTON, text = theme::TEXT;
-  if (v.bonus) { fill = theme::ACCENT; text = theme::TEXT_ON_ACCENT; }
-  if (pressed) { fill = theme::BUTTON_DOWN; text = theme::TEXT; }
-  c.fillRoundRect(b.x, b.y, b.w, b.h, b.h / 2, fill);
+  c.fillRoundRect(b.x, b.y, b.w, b.h, b.h / 2, theme::ACCENT);
   // pixel-drawn "+" (the font's one sits too high and small), then "1"
-  uiPlus(c, b.cx() - 6, b.cy(), 9, 3, text);
+  uiPlus(c, b.cx() - 6, b.cy(), 9, 3, theme::TEXT_ON_ACCENT);
   c.setFont(theme::fontLabel());
   c.setTextDatum(lgfx::textdatum_t::middle_center);
-  c.setTextColor(text);
+  c.setTextColor(theme::TEXT_ON_ACCENT);
   c.drawString("1", b.cx() + 6, b.cy() + 1);
 }
 
@@ -362,7 +358,6 @@ void handleInput(const InputEvent& e) {
       if (d) scoreAdjust(g, (uint8_t)tapCard, d);
       if (!isTap(e, TOUCH_TAP_MAX_MS)) break;
       if (released.zone == ScoreZone::Hub) tapHub(released.index);
-      else if (released.zone == ScoreZone::Bonus) scoreToggleBonus(g, released.index);
       break;
     }
     default:

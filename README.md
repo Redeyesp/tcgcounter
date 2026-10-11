@@ -10,7 +10,7 @@ A tabletop counter with seven games on the home menu (buttons in two columns):
 * **STANDARD** — Magic 1v1 at **20** life: the 2-player Commander table without commander
   damage, with High Roll and dice;
 * **RIFTBOUND** — 1v1 or 4 players free-for-all, first to **8** points, or **2v2** teams to
-  **11**; every card has a **+1** "plus life" button (one extra point each);
+  **11**; a **+1** "plus life" (one extra point each), given in the Riftbound menu;
 * **LORCANA** — 2 or 4 players, first to **20** or **25** lore;
 * **POKEMON** — the device stands up, one half per player: the Active Pokémon's damage in
   tens with **PSN** / **BRN** and **KO**, a bench of 5 with **SWAP**, and a coin flip;
@@ -82,8 +82,8 @@ Using it:
 | Standard | Like the 2-player Commander table, without commander damage: tap a card's **left half = −1**, **right half = +1** · centre **≡** = Standard menu · **🎲** = Dice page | Turn = selected player's life · Press = other player |
 | Dice page | Tap a die (**D4 D6 D8 D12 D20**) = roll it · **BACK** = back to the game · In the popup: **REROLL** · **BACK** = back to the game · tap outside the popup = pick another die. From Home → DICE: the popup's **BACK** = pick another die, **HOME** (top left) = home menu | Turn = move yellow focus · Press = choose · Long-press = back one step |
 | High roll result | Tap anywhere = back to the game (that tap changes nothing) · **≡ → HIGH ROLL** = roll again | Any turn or press = back to the game |
-| Riftbound / Lorcana menu | **CONTINUE** = back to the running game · **HIGH ROLL** · new game: Riftbound **1v1** / **4P** / **2v2**, Lorcana **2P** / **4P** to **20** / **25** (asks first) · **< HOME** | Turn = move yellow focus · Press = choose |
-| Riftbound / Lorcana | Tap a card's **left half = −1**, **right half = +1** (red / green flash; hold repeats; also selects the card) · **+1** (Riftbound) = plus life on / off · Round **≡** = the game's menu · **🎲** = Dice page · **↻** = Restart (asks first) | Turn = selected player's score · Press = next player · Long-press = Restart (asks first) |
+| Riftbound / Lorcana menu | **CONTINUE** = back to the running game · **HIGH ROLL** · **+1 PLUS LIFE** (Riftbound) = give / take back a player's +1, **DONE** = back to the game · new game: Riftbound **1v1** / **4P** / **2v2**, Lorcana **2P** / **4P** to **20** / **25** (asks first) · **< HOME** | Turn = move yellow focus · Press = choose |
+| Riftbound / Lorcana | Tap a card's **left half = −1**, **right half = +1** (red / green flash; hold repeats; also selects the card) · a gold **+1** shows who took their plus life (Riftbound; given in the menu) · Round **≡** = the game's menu · **🎲** = Dice page · **↻** = Restart (asks first) | Turn = selected player's score · Press = next player · Long-press = Restart (asks first) |
 | Digimon | Tap a circle on the gauge = put the counter there (**0** in the middle = memory 0; 1+ on the waiting player's side passes the turn) · **PASS** (whose turn it is) = opponent gets 3 · either round **≡** = Digimon menu | Turn = counter one circle per click, always the same way: clockwise toward the top player, counter-clockwise toward the bottom player · Long-press = PASS |
 | Digimon menu | **CONTINUE** · new game: **BOTTOM** / **TOP** goes first (asks first) · **< HOME** | Turn = move yellow focus · Press = choose |
 | Kingdoms menu | **CONTINUE DEAL** / **CHECK MY ROLE** · deal for **4** / **5** / **6** players (asks before replacing a deal) · **< HOME** | Turn = move yellow focus · Press = choose |
@@ -96,8 +96,8 @@ split into an invisible **left half (−1)** and **right half (+1)**, as the pla
 sees it — faint − / + marks show which is which. The half under your finger turns **red**
 (−) or **green** (+); a short tap counts once when you lift the finger (so a swipe that starts
 on a card counts nothing), holding repeats, and the counted half stays lit for a moment
-(`TAP_FLASH_MS`). Small buttons that do something else stay buttons (Riftbound **+1**, Pokémon
-**PSN / BRN / KO**, the bench slots), and commander damage mode keeps its − / + buttons because
+(`TAP_FLASH_MS`). Small buttons that do something else stay buttons (Pokémon **PSN / BRN / KO**, the bench
+slots; the Riftbound **+1** moved to its menu so it is never hit by accident), and commander damage mode keeps its − / + buttons because
 a Partner card uses its left / right number to pick the commander.
 
 **Players and seating (2–6).** Home → **COMMANDER** opens the Commander menu. **CONTINUE**
@@ -194,11 +194,13 @@ Restart asks *RESTART? … CANCEL / RESTART* and puts everyone back to 0 in the 
 question when everyone is at 0 already). Each game keeps its own scores and format, so you
 can leave a Riftbound game, play Commander, and come back to it.
 
-**Plus life (+1, Riftbound only).** Every Riftbound card has a small **+1** next to its score.
-Tap it to give that player (team) one extra point: it turns gold and the score goes up by 1 —
-also past the target, so a card can show **9 /8** (11 /11 → 12 /11 in 2v2). Each player has
-at most one: tap the gold +1 again to take it back. **−** / **+** keep counting the normal
-points underneath (they stop at the target), so − never removes the +1 by accident. The
+**Plus life (+1, Riftbound only).** Open the Riftbound menu (**≡**) and tap **+1 PLUS LIFE**
+(next to CONTINUE): one button per player (team). Tap one to give that player one extra point:
+it turns gold, and back at the table (**DONE**) their card shows a gold **+1** and the score is
+up by 1 — also past the target, so a card can show **9 /8** (11 /11 → 12 /11 in 2v2). Each
+player has at most one: tap their button again to take it back. It lives in the menu, not on
+the card, so a tap meant for the score never takes it by accident. The card's halves keep
+counting the normal points underneath (they stop at the target), so −1 never removes the +1. The
 targets live in `GameState.h` (`RIFTBOUND_TARGET`, `RIFTBOUND_TEAM_TARGET`, `LORCANA_TARGET`,
 `LORCANA_LONG_TARGET`), the formats in the menu in `ScreenScoreSetup.cpp`.
 
