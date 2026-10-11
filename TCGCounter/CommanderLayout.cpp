@@ -64,7 +64,8 @@ int distToRect(const Rect& r, int x, int y) {
   return dx + dy;
 }
 
-Zone zoneAt(const CardGeom& g, int lx, int ly) {
+Zone zoneAt(const CardGeom& g, int lx, int ly, bool halves) {
+  if (halves) return lx < g.w / 2 ? Zone::Minus : Zone::Plus;
   if (!g.wide) {
     if (ly >= g.zoneY) return lx < g.w / 2 ? Zone::Minus : Zone::Plus;
     return Zone::Area;
@@ -230,7 +231,7 @@ int8_t tableSeatAt(const TableLayout& L, int x, int y) {
   return (int8_t)best;
 }
 
-Hit commanderHitTest(uint8_t players, int x, int y, uint8_t variant) {
+Hit commanderHitTest(uint8_t players, int x, int y, uint8_t variant, bool halves) {
   const TableLayout& L = tableLayout(players, variant);
   const int8_t hub = tableHubAt(L, x, y);
   if (hub >= 0) return {Zone::Hub, (uint8_t)hub};
@@ -239,7 +240,7 @@ Hit commanderHitTest(uint8_t players, int x, int y, uint8_t variant) {
   const Seat& s = L.seats[best];
   int lx, ly;
   seatToLocal(s, x, y, lx, ly);
-  return {zoneAt(cardGeom(s), lx, ly), (uint8_t)best};
+  return {zoneAt(cardGeom(s), lx, ly, halves), (uint8_t)best};
 }
 
 bool isSidewaysSwipe(const Seat& s, int16_t swipeDir) {

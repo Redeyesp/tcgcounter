@@ -113,11 +113,6 @@ ScoreHit scoreHitTest(uint8_t players, bool bonus, int x, int y) {
   seatToLocal(s, x, y, lx, ly);
   const uint8_t i = (uint8_t)p;
   if (g.bonusZone.w > 0 && g.bonusZone.contains(lx, ly)) return {ScoreZone::Bonus, i};
-  if (g.wide) {
-    if (lx < g.minusEnd) return {ScoreZone::Minus, i};
-    if (lx >= g.plusStart) return {ScoreZone::Plus, i};
-    return {ScoreZone::Area, i};
-  }
-  if (ly >= g.zoneY) return {lx < g.w / 2 ? ScoreZone::Minus : ScoreZone::Plus, i};
-  return {ScoreZone::Area, i};
+  // the rest of the card is two invisible halves (TapHalves.h): left −, right +
+  return {lx < g.w / 2 ? ScoreZone::Minus : ScoreZone::Plus, i};
 }

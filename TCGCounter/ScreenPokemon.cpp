@@ -11,8 +11,9 @@
  *  └──────────────────────────┘
  *  Round buttons on the middle line: coin flip, ≡ Pokemon menu.
  *
- *  Touch:   − / + (hold repeats) = damage of what is open (Active, or the
- *               opened bench slot) by 10
+ *  Touch:   left / right half of the damage row (faint − / +; hold repeats) =
+ *               damage of what is open (Active, or the opened bench slot) -10 / +10;
+ *               the half flashes red / green (TapHalves.h)
  *           PSN / BRN = poisoned / burned on/off (Active only)
  *           KO = knocked out: damage back to 0 (the Active also loses PSN / BRN)
  *           tap a bench slot = open it: the big area becomes that slot with
@@ -30,6 +31,7 @@
 #include "GameState.h"
 #include "CommanderLayout.h"
 #include "TableDraw.h"
+#include "TapHalves.h"
 #include "Theme.h"
 #include "Ui.h"
 #include "Config.h"
@@ -53,8 +55,9 @@ constexpr Rect BRN_CHIP = {76, 28, 60, 24};
 constexpr Rect KO_BTN   = {176, 28, 54, 24};
 constexpr Rect BACK_BTN = {10, 28, 36, 24};
 constexpr Rect SWAP_BTN = {52, 28, 92, 24};
-constexpr Rect MINUS    = {10, 58, 52, 50};
+constexpr Rect MINUS    = {10, 58, 52, 50};   // where the faint − / + marks sit
 constexpr Rect PLUS     = {178, 58, 52, 50};
+constexpr Rect DAMAGE   = {4, 56, 232, 54};   // the damage row: left half −10, right half +10
 constexpr int  NUM_CX = 120, NUM_CY = 78, CAPTION_Y = 104;
 constexpr int  BENCH_X0 = 8, BENCH_Y = 114, BENCH_W = 42, BENCH_H = 39, BENCH_PITCH = 45;
 constexpr int  TOP_ROW_Y0 = 24, TOP_ROW_Y1 = 56;  // touch band of the top row
@@ -96,6 +99,7 @@ uint8_t sideAt(int x) { return x < 160 ? 0 : 1; }  // the 2 px gap goes to the n
 int8_t   s_open[2] = {POKEMON_ACTIVE, POKEMON_ACTIVE};  // what each half shows big
 uint32_t s_usedAt[2] = {0, 0};   // last touch on that half (closes an opened bench slot)
 Touch    s_press = NO_TOUCH;
+TapCounter s_tap;                 // the damage-row half under the finger (card = side)
 
 // coin flip
 bool     s_coin = false;          // coin page on screen
@@ -117,8 +121,8 @@ Touch hitTable(int x, int y) {
     if (k >= POKEMON_BENCH) k = POKEMON_BENCH - 1;
     return {Hit::Bench, side, (uint8_t)k};
   }
-  if (inPadded(MINUS, lx, ly)) return {Hit::Minus, side, 0};
-  if (inPadded(PLUS, lx, ly)) return {Hit::Plus, side, 0};
+  if (ly >= DAMAGE.y && ly < DAMAGE.y + DAMAGE.h)  // the damage row: two invisible halves
+    return {lx < HALF_W / 2 ? Hit::Minus : Hit::Plus, side, 0};
   if (ly >= TOP_ROW_Y0 && ly < TOP_ROW_Y1) {
     if (inPadded(KO_BTN, lx, ly)) return {Hit::Ko, side, 0};
     if (s_open[side] == POKEMON_ACTIVE) {
@@ -196,9 +200,10 @@ struct HalfView {
   int16_t bench[POKEMON_BENCH];
   bool    selected;
   Hit     pressed;
+  int8_t  flash;                // damage row half lit red (-1) / green (+1)
   bool operator==(const HalfView& o) const {
     if (value != o.value || open != o.open || status != o.status || selected != o.selected ||
-        pressed != o.pressed)
+        pressed != o.pressed || flash != o.flash)
       return false;
     for (uint8_t k = 0; k < POKEMON_BENCH; ++k)
       if (bench[k] != o.bench[k]) return false;
@@ -215,9 +220,9 @@ HalfView viewOf(uint8_t side) {
   v.status = s.status;
   for (uint8_t k = 0; k < POKEMON_BENCH; ++k) v.bench[k] = s.bench[k];
   v.selected = game().selected == side;
-  const bool held = s_press.side == side && (s_press.what == Hit::Minus || s_press.what == Hit::Plus ||
-                                             s_press.what == Hit::Ko || s_press.what == Hit::Swap);
+  const bool held = s_press.side == side && (s_press.what == Hit::Ko || s_press.what == Hit::Swap);
   v.pressed = held ? s_press.what : Hit::None;
+  v.flash = s_tap.shown((int8_t)side, millis());
   return v;
 }
 
@@ -262,6 +267,7 @@ void paintHalf(lgfx::LovyanGFX& c, int ox, int oy, const void* ctx) {
   c.fillRect(ox, oy, HALF_W, HALF_H, theme::BG);
   c.fillRoundRect(ox, oy, HALF_W, HALF_H, 10, theme::PANEL);
   uiRoundFrame(c, ox, oy, HALF_W, HALF_H, 10, v.selected ? 4 : 1, v.selected ? pc : theme::PANEL_EDGE);
+  drawTapFlash(c, ox + DAMAGE.x, oy + DAMAGE.y, DAMAGE.w, DAMAGE.h, 8, v.flash, theme::PANEL);
 
   const bool bench = v.open != POKEMON_ACTIVE;
   if (!bench) {
@@ -289,11 +295,7 @@ void paintHalf(lgfx::LovyanGFX& c, int ox, int oy, const void* ctx) {
   label(c, ox + NUM_CX, oy + CAPTION_Y, cap, bench ? theme::fontLabel() : theme::fontSmall(),
         bench ? pc : theme::TEXT_DIM);
 
-  const bool minusDown = v.pressed == Hit::Minus, plusDown = v.pressed == Hit::Plus;
-  rbox(c, ox, oy, MINUS, 10, minusDown ? pc : theme::BUTTON);
-  uiMinus(c, ox + MINUS.cx(), oy + MINUS.cy(), 22, 5, minusDown ? theme::TEXT_ON_ACCENT : theme::TEXT);
-  rbox(c, ox, oy, PLUS, 10, plusDown ? pc : theme::BUTTON);
-  uiPlus(c, ox + PLUS.cx(), oy + PLUS.cy(), 22, 5, plusDown ? theme::TEXT_ON_ACCENT : theme::TEXT);
+  drawTapHints(c, ox + MINUS.cx(), oy + MINUS.cy(), ox + PLUS.cx(), oy + PLUS.cy(), 22, 5, v.flash);
 
   for (int k = 0; k < POKEMON_BENCH; ++k) {  // bench row: slot number on top, damage under it
     const Rect r = benchCell(k);
@@ -389,6 +391,7 @@ void handleCoinInput(const InputEvent& e) {
 // ---------------------------------------------------------------- module functions
 void onEnter() {
   s_press = NO_TOUCH;
+  s_tap = TapCounter();
   s_open[0] = s_open[1] = POKEMON_ACTIVE;
   s_coin = s_coinFlipping = false;
   if (s_coinOnEnter) {  // menu -> COIN FLIP
@@ -412,17 +415,22 @@ void handleInput(const InputEvent& e) {
       break;
     case InputType::TouchDown:
       s_press = hitTable(e.x, e.y);
+      s_tap.cancel();
       if (s_press.what != Hit::Coin && s_press.what != Hit::Menu) useSide(s_press.side);
-      if (s_press.what == Hit::Minus) adjust(s_press.side, -1);
-      if (s_press.what == Hit::Plus)  adjust(s_press.side, +1);
+      if (s_press.what == Hit::Minus || s_press.what == Hit::Plus)  // counts when the finger lifts
+        s_tap.down((int8_t)s_press.side, s_press.what == Hit::Minus ? -1 : 1);
       break;
-    case InputType::TouchRepeat:  // hold-to-repeat on − / +
-      if (s_press.what == Hit::Minus) adjust(s_press.side, -1);
-      if (s_press.what == Hit::Plus)  adjust(s_press.side, +1);
+    case InputType::TouchRepeat: {  // hold-to-repeat on a half
+      const int8_t d = s_tap.repeat(millis());
+      if (d) adjust((uint8_t)s_tap.card, d);
       break;
+    }
     case InputType::TouchUp: {
       const Touch t = s_press;
       s_press = NO_TOUCH;
+      const int8_t tapSide = s_tap.card;
+      const int8_t d = s_tap.up(isTap(e, TOUCH_TAP_MAX_MS), millis());
+      if (d) adjust((uint8_t)tapSide, d);
       if (isTap(e, TOUCH_TAP_MAX_MS)) tapTable(t);
       break;
     }

@@ -16,7 +16,9 @@
  *  └──────────────────────────────────────┘ └─────────────┴─────────────┘
  *  Every card faces the player at its edge (top row upside down).
  *
- *  Touch:   tap/hold − / + = score (hold repeats) · tap a card = select it
+ *  Touch:   tap a card's left half = −1, right half = +1 (faint − / + marks,
+ *           red / green flash, counts when the finger lifts, holding repeats;
+ *           TapHalves.h) · the tap also selects the card
  *           +1 (Riftbound) = plus life on / off: one extra point, at most
  *               one per player (team), so a score can end one past the
  *               target (9 /8)
@@ -41,6 +43,7 @@
 #include "Ui.h"
 #include "UiConfirm.h"
 #include "UiDice.h"
+#include "TapHalves.h"
 #include "Config.h"
 #include <stdio.h>
 
@@ -71,6 +74,7 @@ ConfirmDialog s_restart;
 HighRoll      s_roll;
 DiceOverlay   s_dice;
 bool          s_rollOnEnter = false;  // the menu asked for a high roll
+TapCounter    s_tap;                  // the card half under the finger (TapHalves.h)
 
 uint8_t rollD20() { return (uint8_t)random(1, HIGHROLL_SIDES + 1); }  // hardware RNG on the ESP32
 
@@ -79,12 +83,13 @@ struct CardView {
   bool      bonus;      // plus life taken
   bool      won;
   bool      highlight;
-  ScoreZone pressed;    // Minus / Plus / Bonus / None
+  ScoreZone pressed;    // Bonus / None (the +1 button held)
+  int8_t    flash;      // half lit red (-1) / green (+1), 0 none
   DieState  die;        // high roll running: how this player's D20 looks
   uint8_t   face;
   bool operator==(const CardView& o) const {
     return total == o.total && bonus == o.bonus && won == o.won && highlight == o.highlight &&
-           pressed == o.pressed && die == o.die && face == o.face;
+           pressed == o.pressed && flash == o.flash && die == o.die && face == o.face;
   }
   bool operator!=(const CardView& o) const { return !(*this == o); }
 };
@@ -100,12 +105,11 @@ CardView viewOf(uint8_t p) {
   v.bonus = g.bonus[p] != 0;
   v.won = scoreHasWon(g, p);
   v.highlight = (g.selected == p);
-  const bool onCard = s_press.zone == ScoreZone::Minus || s_press.zone == ScoreZone::Plus ||
-                      s_press.zone == ScoreZone::Bonus;
-  v.pressed = (onCard && s_press.index == p) ? s_press.zone : ScoreZone::None;
+  v.pressed = (s_press.zone == ScoreZone::Bonus && s_press.index == p) ? ScoreZone::Bonus : ScoreZone::None;
+  v.flash = s_tap.shown((int8_t)p, millis());
   v.die = highRollDie(s_roll, p);
   v.face = v.die != DieState::None ? s_roll.value[p] : 0;
-  if (v.die != DieState::None) v.pressed = ScoreZone::None;
+  if (v.die != DieState::None) { v.pressed = ScoreZone::None; v.flash = 0; }
   return v;
 }
 
@@ -122,7 +126,10 @@ void askRestart() {
   s_restart.open("RESTART?", body, "The current game will be lost.", "RESTART");
 }
 
-void startHighRoll() { highRollStart(s_roll, game().players, millis(), rollD20); }
+void startHighRoll() {
+  s_tap.cancel();
+  highRollStart(s_roll, game().players, millis(), rollD20);
+}
 
 // ---------------------------------------------------------------- drawing a card
 struct CardJob { const ScoreGeom* g; uint8_t p; const CardView* v; };
@@ -131,23 +138,20 @@ void nameText(uint8_t p, char* buf, size_t n) {
   snprintf(buf, n, game().teams ? "TEAM %u" : "PLAYER %u", (unsigned)(p + 1));
 }
 
+// `flash`: the half being counted, lit red (-1) / green (+1) under the frame.
 void drawPanel(lgfx::LovyanGFX& c, int ox, int oy, const ScoreGeom& g, uint16_t fill,
-               bool thick, uint16_t frame) {
+               bool thick, uint16_t frame, int8_t flash = 0) {
   c.fillRect(ox, oy, g.w, g.h, theme::BG);
   c.fillRoundRect(ox, oy, g.w, g.h, FRAME_R, fill);
+  drawTapFlash(c, ox, oy, g.w, g.h, FRAME_R, flash, fill);
   uiRoundFrame(c, ox, oy, g.w, g.h, FRAME_R, thick ? FRAME_THICK : 1, frame);
 }
 
-void drawButton(lgfx::LovyanGFX& c, int ox, int oy, const ScoreGeom& g, uint8_t p, ScoreZone which,
-                bool pressed) {
-  const Rect& r = which == ScoreZone::Minus ? g.minus : g.plus;
-  const Rect b = {(int16_t)(ox + r.x), (int16_t)(oy + r.y), r.w, r.h};
-  const uint16_t fill = pressed ? theme::PLAYER[p] : theme::BUTTON;
-  const uint16_t sym  = pressed ? theme::TEXT_ON_ACCENT : theme::TEXT;
+// The faint − / + marks where the buttons used to be (the halves count).
+void drawHints(lgfx::LovyanGFX& c, int ox, int oy, const ScoreGeom& g, int8_t lit) {
   const bool big = g.wide;
-  c.fillRoundRect(b.x, b.y, b.w, b.h, 8, fill);
-  if (which == ScoreZone::Minus) uiMinus(c, b.cx(), b.cy(), big ? 26 : 18, big ? 5 : 4, sym);
-  else                           uiPlus(c, b.cx(), b.cy(), big ? 26 : 18, big ? 5 : 4, sym);
+  drawTapHints(c, ox + g.minus.cx(), oy + g.minus.cy(), ox + g.plus.cx(), oy + g.plus.cy(), big ? 26 : 18,
+               big ? 5 : 4, lit);
 }
 
 // +1 plus life: gold once taken.
@@ -244,9 +248,8 @@ void paintCard(lgfx::LovyanGFX& c, int ox, int oy, const void* ctx) {
   if (v.die != DieState::None) { paintRoll(c, ox, oy, g, p, v); return; }
 
   drawPanel(c, ox, oy, g, v.won ? theme::WIN_PANEL : theme::PANEL, v.highlight,
-            v.highlight ? theme::PLAYER[p] : theme::PANEL_EDGE);
-  drawButton(c, ox, oy, g, p, ScoreZone::Minus, v.pressed == ScoreZone::Minus);
-  drawButton(c, ox, oy, g, p, ScoreZone::Plus,  v.pressed == ScoreZone::Plus);
+            v.highlight ? theme::PLAYER[p] : theme::PANEL_EDGE, v.flash);
+  drawHints(c, ox, oy, g, v.flash);
   drawScore(c, ox, oy, g, v);
 
   char name[12];
@@ -310,6 +313,7 @@ void tapHub(uint8_t k) {
 // ---------------------------------------------------------------- module functions
 void onEnter() {
   s_press = SCORE_NO_HIT;
+  s_tap = TapCounter();
   s_restart.close();
   s_dice.close();
   highRollStop(s_roll);
@@ -339,18 +343,23 @@ void handleInput(const InputEvent& e) {
       break;
     case InputType::TouchDown:
       s_press = scoreHitTest(g.players, mode().bonus, e.x, e.y);
+      s_tap.cancel();
       if (s_press.zone != ScoreZone::None && s_press.zone != ScoreZone::Hub)
         scoreSelect(g, s_press.index);
-      if (s_press.zone == ScoreZone::Minus) scoreAdjust(g, s_press.index, -1);
-      if (s_press.zone == ScoreZone::Plus)  scoreAdjust(g, s_press.index, +1);
+      if (s_press.zone == ScoreZone::Minus || s_press.zone == ScoreZone::Plus)  // counts when the finger lifts
+        s_tap.down((int8_t)s_press.index, s_press.zone == ScoreZone::Minus ? -1 : 1);
       break;
-    case InputType::TouchRepeat:  // hold-to-repeat on − / +
-      if (s_press.zone == ScoreZone::Minus) scoreAdjust(g, s_press.index, -1);
-      if (s_press.zone == ScoreZone::Plus)  scoreAdjust(g, s_press.index, +1);
+    case InputType::TouchRepeat: {  // hold-to-repeat on a half
+      const int8_t d = s_tap.repeat(millis());
+      if (d) scoreAdjust(g, (uint8_t)s_tap.card, d);
       break;
+    }
     case InputType::TouchUp: {
       const ScoreHit released = s_press;
       s_press = SCORE_NO_HIT;
+      const int8_t tapCard = s_tap.card;
+      const int8_t d = s_tap.up(isTap(e, TOUCH_TAP_MAX_MS), millis());
+      if (d) scoreAdjust(g, (uint8_t)tapCard, d);
       if (!isTap(e, TOUCH_TAP_MAX_MS)) break;
       if (released.zone == ScoreZone::Hub) tapHub(released.index);
       else if (released.zone == ScoreZone::Bonus) scoreToggleBonus(g, released.index);

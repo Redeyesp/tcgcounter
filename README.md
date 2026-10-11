@@ -38,9 +38,10 @@ the Wi-Fi updater the app takes about 1.0 MB (core 2.0.17) / 1.15 MB (core 3.3.1
 1.25 MB slot.
 
 ![UI preview](docs/ui_preview.png)
-*Rendered from the actual screen code at 2× scale. Firmware update over Wi-Fi: the version
-button on the home menu (top right), the update page, the hotspot page with its QR code (a
-phone has joined) and an upload halfway through.*
+*Rendered from the actual screen code at 2× scale. Counting by card halves: Commander with
+player 1 holding their card's left half (red, −1; that card faces the far side), Standard with
+player 2 holding the right half (green, +1), Lorcana for 4, and Pokémon with both damage rows
+lit. The faint − / + marks show which half is which.*
 
 ---
 
@@ -75,19 +76,29 @@ Using it:
 | Home | Tap a button to open it (**COMMANDER**, **STANDARD**, **RIFTBOUND**, **LORCANA**, **POKEMON**, **DIGIMON**, **KINGDOMS**, **DICE**) · the **version** button (top right) = firmware update over Wi-Fi | Turn = move yellow focus (left to right, then down, then the version button) · Press = open |
 | Firmware update | **START WI-FI** = hotspot on (QR code, password, address) · **CANCEL** = hotspot off · failed: **TRY AGAIN** / **HOME** · **< HOME** | Turn = pick a button · Press = choose (while waiting: CANCEL) |
 | Commander menu | **CONTINUE** = back to the running game · **TABLE** = another layout for the running game (nothing is reset) · **HIGH ROLL** = back to the table and roll for who goes first · **2 3 4 5 6** = new game with that many players (3, 5 and 6 first show the table picker; asks before wiping a game) · **< HOME** = home menu | Turn = move yellow focus · Press = choose · Long-press in the picker = back |
-| Commander | Tap a card = select player · Tap/hold **−**/**+** = life (hold repeats) · **Swipe sideways on a card's number** = commander damage mode for that player · Tap centre **≡** = Commander menu · Tap **🎲** = Dice page | Turn = selected player's life ±1 per click · Press = next player (P1→P2→…→P1) · **Long-press** = commander damage mode for the selected player |
+| Commander | Tap a card's **left half = −1**, **right half = +1** (as that player sees it; the half flashes red / green; hold repeats) — the tap also selects the player · **Swipe sideways on a card's number** = commander damage mode for that player · Tap centre **≡** = Commander menu · Tap **🎲** = Dice page | Turn = selected player's life ±1 per click · Press = next player (P1→P2→…→P1) · **Long-press** = commander damage mode for the selected player |
 | Commander damage mode | −/+ on an **opponent's** card = damage that opponent dealt to the victim · −/+ on the victim's card = life · small **+** on an opponent's card = that player has a **Partner** (then tap the left / right number to pick which commander −/+ count for; **×** takes the partner away while it has dealt no damage) · Tap centre **✕**, or swipe the victim's card again = close · Swipe another card = switch player | Turn = damage from the focused opponent (commander) · Press = next opponent, or its partner · Long-press = close |
 | Standard menu | **CONTINUE** · **HIGH ROLL** · **1v1 20 LIFE** = new game (asks first) · **< HOME** | Turn = move yellow focus · Press = choose |
-| Standard | Like the 2-player Commander table, without commander damage: tap a card = select · tap/hold **−**/**+** = life · centre **≡** = Standard menu · **🎲** = Dice page | Turn = selected player's life · Press = other player |
+| Standard | Like the 2-player Commander table, without commander damage: tap a card's **left half = −1**, **right half = +1** · centre **≡** = Standard menu · **🎲** = Dice page | Turn = selected player's life · Press = other player |
 | Dice page | Tap a die (**D4 D6 D8 D12 D20**) = roll it · **BACK** = back to the game · In the popup: **REROLL** · **BACK** = back to the game · tap outside the popup = pick another die. From Home → DICE: the popup's **BACK** = pick another die, **HOME** (top left) = home menu | Turn = move yellow focus · Press = choose · Long-press = back one step |
 | High roll result | Tap anywhere = back to the game (that tap changes nothing) · **≡ → HIGH ROLL** = roll again | Any turn or press = back to the game |
 | Riftbound / Lorcana menu | **CONTINUE** = back to the running game · **HIGH ROLL** · new game: Riftbound **1v1** / **4P** / **2v2**, Lorcana **2P** / **4P** to **20** / **25** (asks first) · **< HOME** | Turn = move yellow focus · Press = choose |
-| Riftbound / Lorcana | Tap/hold **−**/**+** = score (hold repeats) · Tap a card = select · **+1** (Riftbound) = plus life on / off · Round **≡** = the game's menu · **🎲** = Dice page · **↻** = Restart (asks first) | Turn = selected player's score · Press = next player · Long-press = Restart (asks first) |
+| Riftbound / Lorcana | Tap a card's **left half = −1**, **right half = +1** (red / green flash; hold repeats; also selects the card) · **+1** (Riftbound) = plus life on / off · Round **≡** = the game's menu · **🎲** = Dice page · **↻** = Restart (asks first) | Turn = selected player's score · Press = next player · Long-press = Restart (asks first) |
 | Digimon | Tap a circle on the gauge = put the counter there (**0** in the middle = memory 0; 1+ on the waiting player's side passes the turn) · **PASS** (whose turn it is) = opponent gets 3 · either round **≡** = Digimon menu | Turn = counter one circle per click, always the same way: clockwise toward the top player, counter-clockwise toward the bottom player · Long-press = PASS |
 | Digimon menu | **CONTINUE** · new game: **BOTTOM** / **TOP** goes first (asks first) · **< HOME** | Turn = move yellow focus · Press = choose |
 | Kingdoms menu | **CONTINUE DEAL** / **CHECK MY ROLE** · deal for **4** / **5** / **6** players (asks before replacing a deal) · **< HOME** | Turn = move yellow focus · Press = choose |
 | Kingdoms | Cards: tap a face-down card = see your role (dealing) · **hold** your card = see it again (checking) · **< MENU**. Role page: **NEXT** / **DONE**. Close-your-eyes page: tap anywhere when ready. Last page: **COMMANDER** (table for that many players; asks if a Commander game is running) · **MENU** | Turn = pick a card / button · Press = turn it over, show it, go on · Long-press on the cards = menu |
-| Pokémon (device standing) | Tap/hold **−**/**+** = damage ±10 on what is open (hold repeats) · **PSN** / **BRN** = poisoned / burned on/off · **KO** = back to 0 · tap a bench slot **1–5** = open it (−/+, KO, **⇅ SWAP**, **<** back) · round **coin** = coin flip on both halves · **≡** = Pokémon menu (CONTINUE / COIN FLIP / NEW GAME / HOME) | Turn = ±10 on what the selected player has open · Press = other player · Long-press = back to the Active · Coin page: press = flip again, long-press = back |
+| Pokémon (device standing) | Tap the **left / right half of the damage row** = damage −10 / +10 on what is open (red / green flash; hold repeats) · **PSN** / **BRN** = poisoned / burned on/off · **KO** = back to 0 · tap a bench slot **1–5** = open it (the damage row counts it; KO, **⇅ SWAP**, **<** back) · round **coin** = coin flip on both halves · **≡** = Pokémon menu (CONTINUE / COIN FLIP / NEW GAME / HOME) | Turn = ±10 on what the selected player has open · Press = other player · Long-press = back to the Active · Coin page: press = flip again, long-press = back |
+
+**Counting: tap the card's halves.** There are no small − / + buttons on the counters: every
+life card (Commander, Standard), score card (Riftbound, Lorcana) and the Pokémon damage row is
+split into an invisible **left half (−1)** and **right half (+1)**, as the player at that card
+sees it — faint − / + marks show which is which. The half under your finger turns **red**
+(−) or **green** (+); a short tap counts once when you lift the finger (so a swipe that starts
+on a card counts nothing), holding repeats, and the counted half stays lit for a moment
+(`TAP_FLASH_MS`). Small buttons that do something else stay buttons (Riftbound **+1**, Pokémon
+**PSN / BRN / KO**, the bench slots), and commander damage mode keeps its − / + buttons because
+a Partner card uses its left / right number to pick the commander.
 
 **Players and seating (2–6).** Home → **COMMANDER** opens the Commander menu. **CONTINUE**
 goes back to the game in progress; a number starts a **new game** for that many players.
@@ -156,14 +167,14 @@ otherwise: bring its numbers back to 0 first). With the encoder, a press steps t
 opponents and their partners.
 
 **YOU ARE OUT.** At **0 life or less**, or **21 commander damage from one commander**, the card turns
-red and shows *YOU ARE OUT*. − / + still work, so a mis-tap can be undone and the player
+red and shows *YOU ARE OUT*. Its halves still count, so a mis-tap can be undone and the player
 "revives" as soon as the numbers are legal again. (Rules live in `GameState.h`: `OUT_AT_LIFE`,
 `CMD_DAMAGE_LETHAL`, `CMD_DAMAGE_AFFECTS_LIFE`.)
 
 **Standard (Magic 1v1).** Home → **STANDARD** opens its menu: **CONTINUE**, **HIGH ROLL**
 (back to the table, rolling for who goes first), **1v1 · 20 LIFE** for a new game (asks first
 unless both players are still at 20) and **< HOME**. The table is the 2-player Commander
-table — two cards facing each other, −/+ with hold-repeat, *YOU ARE OUT* at 0 — with its own
+table — two cards facing each other, tap the halves (hold repeats), *YOU ARE OUT* at 0 — with its own
 game (Commander's is kept), no commander damage (swiping and the encoder long-press do
 nothing), the round **≡** for the Standard menu and **🎲** for the Dice page.
 
@@ -195,10 +206,11 @@ targets live in `GameState.h` (`RIFTBOUND_TARGET`, `RIFTBOUND_TEAM_TARGET`, `LOR
 (everything back to 0; asks first) and **HOME**. Stand the device up (portrait) between the
 players: player 1 sits at the top short edge (their half is upside down), player 2 at the
 bottom. Each half, from the middle out: **PSN** (poisoned), **BRN** (burned) and **KO**; the
-Active Pokémon's damage with big **−** / **+** (10 per tap, hold repeats); and nearest the
+Active Pokémon's damage — tap the **left / right half of that row** for −10 / +10 (it flashes
+red / green; hold repeats); and nearest the
 player the bench, slots **1 2 3 4 5** with their damage (0 = no damage or an empty slot: the
-players know which). Tap a bench slot to open it: the big area shows **BENCH n** with its own
-**−** / **+**, **KO**, **⇅ SWAP** and **<** (back to the Active; tapping the slot again, or
+players know which). Tap a bench slot to open it: the big area shows **BENCH n** (the damage
+row now counts that slot), **KO**, **⇅ SWAP** and **<** (back to the Active; tapping the slot again, or
 10 s without touching that half, does the same — `POKEMON_BENCH_TIMEOUT_MS`). **SWAP** makes
 that bench Pokémon the Active and puts the old Active in its slot with its damage; PSN and BRN
 end, as they do when the Active goes to the bench. **KO** puts that Pokémon's damage back to 0
@@ -375,6 +387,7 @@ tcgcounter/
     ├── OtaServer.h/.cpp      the Wi-Fi hotspot, the upload page and writing the new firmware
     ├── HighRoll.h/.cpp       high roll logic: D20 per player, tie-breaks (no drawing)
     ├── TableDraw.h/.cpp      cards that face their player (off-screen, rotated), round buttons, dice shapes
+    ├── TapHalves.h/.cpp      counting by card halves: left −1 / right +1, red / green flash, hold repeat
     ├── UiConfirm.h/.cpp      full-screen CANCEL / OK question (new game, restart)
     ├── UiDice.h/.cpp         Dice page: pick D4..D20, roll popup with REROLL / BACK
     └── Ui.h/.cpp             shared drawing helpers + Rect hit-testing
@@ -650,7 +663,7 @@ Hold **BOOT**, tap **RST**, release BOOT, then start the upload again. After upl
 
 For another race-to-a-score game, add a `ScoreGame` in `AppState` (saved like `rb` / `lc`),
 two `Screen` values (table + menu), a `ScoreMode` entry in `ScreenScore.cpp` and a
-`GameMenu` with its formats in `ScreenScoreSetup.cpp`; it then gets 2 or 4 cards, −/+,
+`GameMenu` with its formats in `ScreenScoreSetup.cpp`; it then gets 2 or 4 cards, tap halves,
 Restart, High Roll and Dice for free. For anything different:
 
 | Step | File | What to do |
@@ -674,7 +687,7 @@ mode. Screens can also implement the optional `tick()` hook in `ScreenModule` fo
 | 1 | Boot screen text reads the right way up, landscape | `DISPLAY_ROTATION` 1 ↔ 3 |
 | 2 | Background black, RED/GREEN/BLUE swatches correct | `DISPLAY_INVERT_COLORS`, `DISPLAY_SWAP_RED_BLUE` |
 | 3 | Screen not white/garbled/mirrored | flash the other variant (ST7789 ↔ ILI9341) |
-| 4 | Calibration completes; − / + light up exactly where tapped | re-calibrate (section 5) |
+| 4 | Calibration completes; the card half you tap lights up (left red, right green) | re-calibrate (section 5) |
 | 5 | Serial shows `idle AB=11` for the encoder | pull-ups / wiring (section 6) |
 | 6 | Clockwise = +1 on the selected player | `ENC_REVERSE` |
 | 7 | One click = exactly one point | `ENC_STEPS_PER_DETENT` |

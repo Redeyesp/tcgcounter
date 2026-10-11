@@ -133,8 +133,10 @@ constexpr Hit NO_HIT = {Zone::None, 0};
 
 // What a touch at screen (x, y) lands on with `players` at the table in
 // layout `variant`. The thin gaps between cards belong to the nearest card;
-// the empty seat of the 3-player layouts is NO_HIT.
-Hit commanderHitTest(uint8_t players, int x, int y, uint8_t variant = 0);
+// the empty seat of the 3-player layouts is NO_HIT. `halves`: the whole card
+// is two invisible halves, left = Minus, right = Plus (TapHalves.h: the life
+// view); otherwise only the − / + buttons are (commander damage mode).
+Hit commanderHitTest(uint8_t players, int x, int y, uint8_t variant = 0, bool halves = false);
 
 // Is a TouchSwipe (screen direction code, see InputEvents.h) a sideways
 // swipe for the player at this seat? (Head-of-table players swipe "sideways"

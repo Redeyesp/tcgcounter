@@ -16,7 +16,10 @@
  *  └──────────┴──────────┘             └──────────┴──────────┘
  *
  *  Normal mode
- *    Touch:   tap a card = select · tap/hold −/+ = life (hold repeats)
+ *    Touch:   tap a card's left half = −1 life, right half = +1 (as its
+ *             player sees it; faint − / + marks; the half flashes red / green,
+ *             a tap counts when the finger lifts, holding repeats; TapHalves.h)
+ *             — the tap also selects the card
  *             swipe sideways on a card's number = commander damage mode for that player
  *             tap centre ≡ = Commander menu (high roll, player count, new game, home)
  *             tap 🎲 = Dice page
@@ -61,6 +64,7 @@
 #include "TableDraw.h"
 #include "HighRoll.h"
 #include "UiDice.h"
+#include "TapHalves.h"
 #include "Theme.h"
 #include "Ui.h"
 #include "Config.h"
@@ -91,6 +95,7 @@ HighRoll s_roll;             // high roll (who goes first)
 DiceOverlay s_dice;          // Dice page on top of the table
 bool     s_drawnDice = false;
 bool     s_rollOnEnter = false;  // the menu asked for a high roll
+TapCounter s_tap;                 // life view: the card half under the finger (TapHalves.h)
 
 bool cmdMode() { return s_victim != NONE; }
 
@@ -110,6 +115,7 @@ uint8_t rollD20() { return (uint8_t)random(1, HIGHROLL_SIDES + 1); }  // hardwar
 
 void startHighRoll() {
   exitCmdMode();
+  s_tap.cancel();
   highRollStart(s_roll, game().players, millis(), rollD20);
 }
 
@@ -181,7 +187,8 @@ struct CardView {
   OutReason out;        // this card's own player
   uint8_t   cmdMax;     // Life cards: biggest damage from one commander (badge)
   bool      highlight;  // thick coloured border
-  Zone      pressed;    // Minus / Plus / None
+  Zone      pressed;    // commander damage mode: − / + button held (Minus / Plus / None)
+  int8_t    flash;      // life view: half lit red (-1) / green (+1), 0 none
   DieState  die;        // high roll running: how this player's D20 looks
   uint8_t   face;       // high roll: number on the D20
   bool operator==(const CardView& o) const {
@@ -189,7 +196,7 @@ struct CardView {
            partner == o.partner && sel == o.sel && partnerBtn == o.partnerBtn &&
            partnerPressed == o.partnerPressed && out == o.out &&
            cmdMax == o.cmdMax && highlight == o.highlight && pressed == o.pressed &&
-           die == o.die && face == o.face;
+           flash == o.flash && die == o.die && face == o.face;
   }
   bool operator!=(const CardView& o) const { return !(*this == o); }
 };
@@ -229,10 +236,11 @@ CardView viewOf(uint8_t i) {
     v.partnerPressed = s_pressPartner && s_press.index == i;
   }
   const bool onButton = s_press.zone == Zone::Minus || s_press.zone == Zone::Plus;
-  v.pressed = (onButton && s_press.index == i) ? s_press.zone : Zone::None;
+  v.pressed = (cmdMode() && onButton && s_press.index == i) ? s_press.zone : Zone::None;
+  v.flash = v.role == Role::Life ? s_tap.shown((int8_t)i, millis()) : 0;
   v.die = highRollDie(s_roll, i);
   v.face = v.die != DieState::None ? s_roll.value[i] : 0;
-  if (v.die != DieState::None) v.pressed = Zone::None;
+  if (v.die != DieState::None) { v.pressed = Zone::None; v.flash = 0; }
   return v;
 }
 
@@ -495,14 +503,20 @@ void drawLabel(lgfx::LovyanGFX& c, int ox, int oy, const CardGeom& g, uint8_t i,
   c.drawString(buf, p.cx(), p.cy() + 1);
 }
 
+// − / + symbol size for this card (bigger on the big 2-player cards)
+void symbolSize(const CardGeom& g, int& len, int& thick) {
+  const int shortSide = g.minus.w < g.minus.h ? g.minus.w : g.minus.h;
+  len = shortSide >= 52 ? 26 : 18;
+  thick = shortSide >= 52 ? 5 : 4;
+}
+
 void drawButton(lgfx::LovyanGFX& c, int ox, int oy, const CardGeom& g, uint8_t i, Zone which, bool pressed) {
   const Rect& r = (which == Zone::Minus) ? g.minus : g.plus;
   const Rect b = {(int16_t)(ox + r.x), (int16_t)(oy + r.y), r.w, r.h};
   const uint16_t fill = pressed ? theme::PLAYER[i] : theme::BUTTON;
   const uint16_t sym  = pressed ? theme::TEXT_ON_ACCENT : theme::TEXT;
-  const int shortSide = b.w < b.h ? b.w : b.h;
-  const int len = shortSide >= 52 ? 26 : 18;  // bigger symbol on the big 2-player buttons
-  const int thick = shortSide >= 52 ? 5 : 4;
+  int len, thick;
+  symbolSize(g, len, thick);
   c.fillRoundRect(b.x, b.y, b.w, b.h, 8, fill);
   if (which == Zone::Minus) uiMinus(c, b.cx(), b.cy(), len, thick, sym);
   else                      uiPlus(c, b.cx(), b.cy(), len, thick, sym);
@@ -544,12 +558,19 @@ void drawCardContent(lgfx::LovyanGFX& c, int ox, int oy, const CardGeom& g, uint
   if (v.die != DieState::None) { drawRollContent(c, ox, oy, g, i, v); return; }
   c.fillRect(ox, oy, g.w, g.h, theme::BG);
   c.fillRoundRect(ox, oy, g.w, g.h, FRAME_R, cardBg(v));
+  drawTapFlash(c, ox, oy, g.w, g.h, FRAME_R, v.flash, cardBg(v));
   drawFrame(c, ox, oy, g, i, v);
   drawLabel(c, ox, oy, g, i, v);
   drawPartnerButton(c, ox, oy, g, v);
   drawCenter(c, ox, oy, g, i, v);
-  drawButton(c, ox, oy, g, i, Zone::Minus, v.pressed == Zone::Minus);
-  drawButton(c, ox, oy, g, i, Zone::Plus,  v.pressed == Zone::Plus);
+  if (v.role == Role::Life) {  // life view: the halves count; faint marks show which is which
+    int len, thick;
+    symbolSize(g, len, thick);
+    drawTapHints(c, ox + g.minus.cx(), oy + g.minus.cy(), ox + g.plus.cx(), oy + g.plus.cy(), len, thick, v.flash);
+  } else {                     // commander damage mode: the − / + buttons
+    drawButton(c, ox, oy, g, i, Zone::Minus, v.pressed == Zone::Minus);
+    drawButton(c, ox, oy, g, i, Zone::Plus,  v.pressed == Zone::Plus);
+  }
 }
 
 // ---------------------------------------------------------------- whole card / centre buttons
@@ -597,6 +618,7 @@ void handleRollInput(const InputEvent& e) {
 // ---------------------------------------------------------------- module functions
 void onEnter() {
   s_press = NO_HIT;
+  s_tap = TapCounter();
   s_pressPartner = false;
   exitCmdMode();  // always come back to the normal life view
   s_dice.close();
@@ -627,8 +649,9 @@ void handleInput(const InputEvent& e) {
       break;
 
     case InputType::TouchDown: {
-      s_press = commanderHitTest(gm.players, e.x, e.y, gm.layout);
+      s_press = commanderHitTest(gm.players, e.x, e.y, gm.layout, !cmdMode());  // life view: halves
       s_pressPartner = false;
+      s_tap.cancel();
       const Zone z = s_press.zone;
       const uint8_t p = s_press.index;
       if (z == Zone::Area && cmdMode() && p != (uint8_t)s_victim) {
@@ -645,21 +668,33 @@ void handleInput(const InputEvent& e) {
         if (!cmdMode()) commanderSelect(gm, p);
         else { if (p != (uint8_t)s_victim) s_focus = p; touchMode(); }
       }
-      if (z == Zone::Minus) adjustCard(p, -1);
-      if (z == Zone::Plus)  adjustCard(p, +1);
+      if (z == Zone::Minus || z == Zone::Plus) {
+        if (!cmdMode()) s_tap.down((int8_t)p, z == Zone::Minus ? -1 : 1);  // counts when the finger lifts
+        else adjustCard(p, z == Zone::Minus ? -1 : 1);                   // damage buttons: at once
+      }
       break;
     }
 
-    case InputType::TouchRepeat:  // hold-to-repeat on − / +
-      if (s_press.zone == Zone::Minus) adjustCard(s_press.index, -1);
-      if (s_press.zone == Zone::Plus)  adjustCard(s_press.index, +1);
+    case InputType::TouchRepeat:  // hold-to-repeat on a half / on − / +
+      if (s_tap.card >= 0) {
+        const int8_t d = s_tap.repeat(millis());
+        if (d) adjustCard((uint8_t)s_tap.card, d);
+      } else if (s_press.zone == Zone::Minus) {
+        adjustCard(s_press.index, -1);
+      } else if (s_press.zone == Zone::Plus) {
+        adjustCard(s_press.index, +1);
+      }
       break;
 
     case InputType::TouchSwipe: {  // only swipes that start on a card's number/label area
       s_pressPartner = false;
-      if (standard() || s_press.zone != Zone::Area) break;  // Standard has no commander damage
+      s_tap.cancel();  // a swipe counts nothing
+      const bool onCard = s_press.zone == Zone::Area ||
+                          (!cmdMode() && (s_press.zone == Zone::Minus || s_press.zone == Zone::Plus));
+      if (standard() || !onCard) break;  // Standard has no commander damage
       const uint8_t p = s_press.index;
       if (!isSidewaysSwipe(table().seats[p], e.delta)) break;  // sideways for that player only
+      s_press = {Zone::Area, p};  // nothing shows pressed in the mode that opens
       if (!cmdMode()) enterCmdMode(p);
       else if (p == (uint8_t)s_victim) exitCmdMode();
       else enterCmdMode(p);  // switch to that player's damage
@@ -671,6 +706,9 @@ void handleInput(const InputEvent& e) {
       const bool onPartner = s_pressPartner;
       s_press = NO_HIT;
       s_pressPartner = false;
+      const int8_t tapCard = s_tap.card;
+      const int8_t d = s_tap.up(isTap(e, TOUCH_TAP_MAX_MS), millis());  // life view: a tap on a half
+      if (d && !cmdMode()) adjustCard((uint8_t)tapCard, d);
       if (onPartner && cmdMode() && isTap(e, TOUCH_TAP_MAX_MS)) togglePartner(released.index);
       if (released.zone == Zone::Hub && isTap(e, TOUCH_TAP_MAX_MS)) {
         if (table().hubs[released.index].kind == HubKind::Dice) {  // 🎲
